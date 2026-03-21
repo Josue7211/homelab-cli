@@ -1,0 +1,546 @@
+#!/usr/bin/env bash
+# pelican - CLI for Pelican Panel (game server management)
+# Uses Pelican REST API with Bearer token auth.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Config (from ~/.config/homelab-cli/config) ────────────────
+PELICAN_URL="${PELICAN_URL:-http://127.0.0.1:8080}"
+PELICAN_TOKEN_SOURCE="${PELICAN_TOKEN_SOURCE:-bw}"
+PELICAN_TOKEN_BW_ENTRY="${PELICAN_TOKEN_BW_ENTRY:-Pelican API}"
+
+# ── Token cache ───────────────────────────────────────────────
+_pelican_token=""
+
+get_token() {
+    if [[ -n "$_pelican_token" ]]; then echo "$_pelican_token"; return; fi
+    _pelican_token=$(get_secret "$PELICAN_TOKEN_SOURCE" "$PELICAN_TOKEN_BW_ENTRY") || {
+        die "Can't get Pelican API token. Is vault unlocked? (bw unlock)"
+    }
+    echo "$_pelican_token"
+}
+
+# ── API helpers (Bearer token + Pterodactyl Accept header) ────
+pel_api() {
+    local method="$1" path="$2"
+    shift 2
+    local token
+    token=$(get_token)
+    curl -sf -X "$method" "${PELICAN_URL}/api${path}" \
+        -H "Authorization: Bearer $token" \
+        -H "Accept: application/vnd.pterodactyl.v1+json" \
+        -H "Content-Type: application/json" \
+        "$@"
+}
+
+pel_get()    { pel_api GET "$1"; }
+pel_post()   { pel_api POST "$1" "${@:2}"; }
+pel_patch()  { pel_api PATCH "$1" "${@:2}"; }
+pel_delete() { pel_api DELETE "$1"; }
+
+# ── Commands: Status ──────────────────────────────────────────
+
+cmd_status() {
+    header "PELICAN PANEL STATUS"
+    echo -e "  URL:  ${DIM}${PELICAN_URL}${RESET}"
+
+    # Nodes
+    local nodes
+    nodes=$(pel_get "/application/nodes" 2>/dev/null) || { warn "  Can't connect to Panel"; return 1; }
+    echo ""
+    echo "$nodes" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+nodes = d.get('data', [])
+print(f'  NODES ({len(nodes)})')
+print('  ─────────────────────────────────────────────────────')
+for n in nodes:
+    a = n.get('attributes', {})
+    name = a.get('name', '?')
+    fqdn = a.get('fqdn', '?')
+    mem = a.get('memory', 0)
+    disk = a.get('disk', 0)
+    scheme = a.get('scheme', 'https')
+    port = a.get('daemon_listen', 8443)
+    print(f'    {name:<20} {fqdn}:{port} ({scheme})')
+    print(f'    {\" \"*20} Memory: {mem}MB  Disk: {disk}MB')
+"
+
+    # Servers
+    local servers
+    servers=$(pel_get "/application/servers" 2>/dev/null)
+    echo ""
+    echo "$servers" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+servers = d.get('data', [])
+print(f'  SERVERS ({len(servers)})')
+print('  ─────────────────────────────────────────────────────')
+if not servers:
+    print('    (no servers)')
+else:
+    for s in servers:
+        a = s.get('attributes', {})
+        name = a.get('name', '?')
+        status = a.get('status', '?')
+        suspended = a.get('suspended', False)
+        mem = a.get('limits', {}).get('memory', 0)
+        disk = a.get('limits', {}).get('disk', 0)
+        cpu = a.get('limits', {}).get('cpu', 0)
+        uuid = a.get('uuid', '?')[:8]
+        state = 'SUSPENDED' if suspended else status
+        print(f'    {name:<25} [{state}]  CPU:{cpu}% Mem:{mem}MB Disk:{disk}MB  ({uuid})')
+"
+}
+
+# ── Commands: Servers ─────────────────────────────────────────
+
+cmd_servers() {
+    pel_get "/application/servers" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+servers = d.get('data', [])
+if not servers:
+    print('  No servers.')
+    sys.exit()
+print(f'  {\"ID\":<5} {\"Name\":<25} {\"Status\":<12} {\"CPU\":>5} {\"Mem\":>7} {\"Disk\":>7}  {\"UUID\"}')
+print(f'  {\"─\"*4} {\"─\"*24} {\"─\"*11} {\"─\"*5} {\"─\"*7} {\"─\"*7}  {\"─\"*36}')
+for s in sorted(servers, key=lambda x: x['attributes']['id']):
+    a = s['attributes']
+    sid = a.get('id', '?')
+    name = a.get('name', '?')[:24]
+    status = 'SUSPENDED' if a.get('suspended') else a.get('status', '?')
+    lim = a.get('limits', {})
+    cpu = f'{lim.get(\"cpu\", 0)}%'
+    mem = f'{lim.get(\"memory\", 0)}MB'
+    disk = f'{lim.get(\"disk\", 0)}MB'
+    uuid = a.get('uuid', '?')
+    print(f'  {sid:<5} {name:<25} {status:<12} {cpu:>5} {mem:>7} {disk:>7}  {uuid}')
+"
+}
+
+cmd_server() {
+    local identifier="$1"
+    [[ -z "$identifier" ]] && die "Usage: pelican server <id|uuid>"
+
+    # Try application API by numeric ID first, then by UUID
+    local response
+    if [[ "$identifier" =~ ^[0-9]+$ ]]; then
+        response=$(pel_get "/application/servers/$identifier?include=allocations,node")
+    else
+        # Search by identifier/uuid via client API
+        response=$(pel_get "/client/servers/$identifier")
+    fi
+
+    echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+a = d.get('attributes', d)
+lim = a.get('limits', {})
+feat = a.get('feature_limits', {})
+
+print(f'  Name:        {a.get(\"name\", \"?\")}')
+print(f'  Description: {a.get(\"description\", \"-\") or \"-\"}')
+print(f'  UUID:        {a.get(\"uuid\", \"?\")}')
+print(f'  Identifier:  {a.get(\"identifier\", \"?\")}')
+print(f'  Status:      {\"SUSPENDED\" if a.get(\"suspended\") else a.get(\"status\", \"?\")}')
+print(f'  Node:        {a.get(\"node\", \"?\")}')
+print()
+print('  LIMITS:')
+print(f'    CPU:       {lim.get(\"cpu\", 0)}%')
+print(f'    Memory:    {lim.get(\"memory\", 0)} MB')
+print(f'    Disk:      {lim.get(\"disk\", 0)} MB')
+print(f'    Swap:      {lim.get(\"swap\", 0)} MB')
+print(f'    IO:        {lim.get(\"io\", 500)}')
+print()
+print('  FEATURES:')
+print(f'    Databases:   {feat.get(\"databases\", 0)}')
+print(f'    Backups:     {feat.get(\"backups\", 0)}')
+print(f'    Allocations: {feat.get(\"allocations\", 0)}')
+
+# Allocations
+allocs = a.get('relationships', {}).get('allocations', {}).get('data', [])
+if allocs:
+    print()
+    print('  ALLOCATIONS:')
+    for al in allocs:
+        aa = al.get('attributes', {})
+        ip = aa.get('ip', '?')
+        port = aa.get('port', '?')
+        alias = aa.get('ip_alias', '') or ''
+        primary = ' (primary)' if aa.get('assigned') else ''
+        print(f'    {ip}:{port}{\" → \" + alias if alias else \"\"}{primary}')
+"
+}
+
+cmd_resources() {
+    local identifier="$1"
+    [[ -z "$identifier" ]] && die "Usage: pelican resources <server_identifier>"
+
+    pel_get "/client/servers/$identifier/resources" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+a = d.get('attributes', {})
+state = a.get('current_state', '?')
+
+def fmt(b):
+    for u in ['B','KB','MB','GB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB'
+
+mem = a.get('resources', {}).get('memory_bytes', 0)
+mem_lim = a.get('resources', {}).get('memory_limit_bytes', 0)
+cpu = a.get('resources', {}).get('cpu_absolute', 0)
+disk = a.get('resources', {}).get('disk_bytes', 0)
+net_rx = a.get('resources', {}).get('network_rx_bytes', 0)
+net_tx = a.get('resources', {}).get('network_tx_bytes', 0)
+uptime = a.get('resources', {}).get('uptime', 0)
+
+hours = uptime // 3600
+minutes = (uptime % 3600) // 60
+
+state_color = '\033[32m' if state == 'running' else '\033[31m' if state == 'offline' else '\033[33m'
+print(f'  State:    {state_color}{state}\033[0m')
+print(f'  Uptime:   {hours}h {minutes}m')
+print(f'  CPU:      {cpu:.1f}%')
+print(f'  Memory:   {fmt(mem)} / {fmt(mem_lim)}')
+print(f'  Disk:     {fmt(disk)}')
+print(f'  Network:  ↓ {fmt(net_rx)}  ↑ {fmt(net_tx)}')
+"
+}
+
+# ── Commands: Power ───────────────────────────────────────────
+
+cmd_power() {
+    local identifier="$1" signal="$2"
+    [[ -z "$identifier" || -z "$signal" ]] && die "Usage: pelican <start|stop|restart|kill> <server_identifier>"
+
+    case "$signal" in
+        start|stop|restart|kill) ;;
+        *) die "Invalid signal: $signal (expected: start, stop, restart, kill)" ;;
+    esac
+
+    info "Sending '$signal' to $identifier..."
+    pel_post "/client/servers/$identifier/power" -d "{\"signal\":\"$signal\"}" > /dev/null
+    ok "Done."
+}
+
+cmd_command() {
+    local identifier="$1"
+    shift || die "Usage: pelican command <server_identifier> <command...>"
+    local cmd="$*"
+    [[ -z "$cmd" ]] && die "Usage: pelican command <server_identifier> <command...>"
+
+    pel_post "/client/servers/$identifier/command" \
+        -d "$(CMD="$cmd" python3 -c "import json,os; print(json.dumps({'command': os.environ['CMD']}))")" > /dev/null
+    ok "  Sent: $cmd"
+}
+
+# ── Commands: Nodes ───────────────────────────────────────────
+
+cmd_nodes() {
+    pel_get "/application/nodes" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+nodes = d.get('data', [])
+if not nodes:
+    print('  No nodes.')
+    sys.exit()
+print(f'  {\"ID\":<5} {\"Name\":<20} {\"FQDN\":<25} {\"Memory\":>8} {\"Disk\":>8} {\"Scheme\"}')
+print(f'  {\"─\"*4} {\"─\"*19} {\"─\"*24} {\"─\"*8} {\"─\"*8} {\"─\"*6}')
+for n in nodes:
+    a = n['attributes']
+    nid = a.get('id', '?')
+    name = a.get('name', '?')[:19]
+    fqdn = a.get('fqdn', '?')[:24]
+    mem = f'{a.get(\"memory\", 0)}MB'
+    disk = f'{a.get(\"disk\", 0)}MB'
+    scheme = a.get('scheme', '?')
+    print(f'  {nid:<5} {name:<20} {fqdn:<25} {mem:>8} {disk:>8} {scheme}')
+"
+}
+
+# ── Commands: Users ───────────────────────────────────────────
+
+cmd_users() {
+    pel_get "/application/users" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+users = d.get('data', [])
+if not users:
+    print('  No users.')
+    sys.exit()
+print(f'  {\"ID\":<5} {\"Username\":<20} {\"Email\":<30} {\"Admin\":>5} {\"2FA\":>4}')
+print(f'  {\"─\"*4} {\"─\"*19} {\"─\"*29} {\"─\"*5} {\"─\"*4}')
+for u in users:
+    a = u['attributes']
+    uid = a.get('id', '?')
+    name = a.get('username', '?')[:19]
+    email = a.get('email', '?')[:29]
+    admin = 'Yes' if a.get('root_admin') else 'No'
+    tfa = 'Yes' if a.get('2fa') else 'No'
+    print(f'  {uid:<5} {name:<20} {email:<30} {admin:>5} {tfa:>4}')
+"
+}
+
+# ── Commands: Backups ─────────────────────────────────────────
+
+cmd_backups() {
+    local identifier="$1"
+    [[ -z "$identifier" ]] && die "Usage: pelican backups <server_identifier>"
+
+    pel_get "/client/servers/$identifier/backups" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+backups = d.get('data', [])
+if not backups:
+    print('  No backups.')
+    sys.exit()
+print(f'  {\"UUID\":<12} {\"Name\":<25} {\"Size\":>10} {\"Created\":<20} {\"Status\"}')
+print(f'  {\"─\"*11} {\"─\"*24} {\"─\"*10} {\"─\"*19} {\"─\"*10}')
+for b in backups:
+    a = b['attributes']
+    uuid = a.get('uuid', '?')[:11]
+    name = a.get('name', '?')[:24]
+    size = a.get('bytes', 0)
+    for u in ['B','KB','MB','GB']:
+        if size < 1024: size_s = f'{size:.1f} {u}'; break
+        size /= 1024
+    else:
+        size_s = f'{size:.1f} TB'
+    created = a.get('created_at', '?')[:19].replace('T', ' ')
+    completed = 'Complete' if a.get('is_successful') else 'Failed' if a.get('completed_at') else 'In Progress'
+    print(f'  {uuid:<12} {name:<25} {size_s:>10} {created:<20} {completed}')
+"
+}
+
+cmd_backup_create() {
+    local identifier="$1"
+    [[ -z "$identifier" ]] && die "Usage: pelican backup-create <server_identifier>"
+
+    info "Creating backup for $identifier..."
+    pel_post "/client/servers/$identifier/backups" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+a = d.get('attributes', {})
+print(f'  Backup started: {a.get(\"uuid\", \"?\")}')
+print(f'  Name: {a.get(\"name\", \"?\")}')
+"
+}
+
+# ── Commands: Files ───────────────────────────────────────────
+
+cmd_files() {
+    local identifier="$1" dir="${2:-/}"
+    [[ -z "$identifier" ]] && die "Usage: pelican files <server_identifier> [directory]"
+
+    local encoded_dir
+    encoded_dir=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$dir'))")
+
+    pel_get "/client/servers/$identifier/files/list?directory=$encoded_dir" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+files = d.get('data', [])
+if not files:
+    print('  (empty directory)')
+    sys.exit()
+
+def fmt(b):
+    for u in ['B','KB','MB','GB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB'
+
+print(f'  {\"Name\":<40} {\"Size\":>10}  {\"Modified\"}')
+print(f'  {\"─\"*39} {\"─\"*10}  {\"─\"*19}')
+# Directories first
+dirs = [f for f in files if f['attributes'].get('is_file') == False]
+regular = [f for f in files if f['attributes'].get('is_file') == True]
+for f in sorted(dirs, key=lambda x: x['attributes']['name']) + sorted(regular, key=lambda x: x['attributes']['name']):
+    a = f['attributes']
+    name = a.get('name', '?')
+    is_file = a.get('is_file', True)
+    if not is_file:
+        name = name + '/'
+    if len(name) > 39:
+        name = name[:36] + '...'
+    size = fmt(a.get('size', 0)) if is_file else '-'
+    modified = a.get('modified_at', '?')[:19].replace('T', ' ')
+    print(f'  {name:<40} {size:>10}  {modified}')
+"
+}
+
+# ── Commands: Activity ────────────────────────────────────────
+
+cmd_activity() {
+    local identifier="$1"
+    [[ -z "$identifier" ]] && die "Usage: pelican activity <server_identifier>"
+
+    pel_get "/client/servers/$identifier/activity" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+events = d.get('data', [])
+if not events:
+    print('  No activity.')
+    sys.exit()
+print(f'  {\"Time\":<20} {\"Event\":<30} {\"IP\"}')
+print(f'  {\"─\"*19} {\"─\"*29} {\"─\"*15}')
+for e in events[:25]:
+    a = e.get('attributes', {})
+    ts = a.get('timestamp', '?')[:19].replace('T', ' ')
+    event = a.get('event', '?')
+    ip = a.get('ip', '-')
+    print(f'  {ts:<20} {event:<30} {ip}')
+"
+}
+
+# ── Commands: Eggs/Nests ──────────────────────────────────────
+
+cmd_eggs() {
+    pel_get "/application/nests?include=eggs" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+nests = d.get('data', [])
+if not nests:
+    print('  No nests.')
+    sys.exit()
+for n in nests:
+    na = n['attributes']
+    print(f'  NEST: {na.get(\"name\", \"?\")} (ID: {na.get(\"id\", \"?\")})')
+    print(f'  {na.get(\"description\", \"-\")}')
+    eggs = na.get('relationships', {}).get('eggs', {}).get('data', [])
+    for e in eggs:
+        ea = e['attributes']
+        eid = ea.get('id', '?')
+        ename = ea.get('name', '?')
+        docker = ea.get('docker_image', '?')
+        print(f'    {eid:<5} {ename:<30} {docker}')
+    print()
+"
+}
+
+# ── Commands: Allocations ─────────────────────────────────────
+
+cmd_allocations() {
+    local node_id="$1"
+    [[ -z "$node_id" ]] && die "Usage: pelican allocations <node_id>"
+
+    pel_get "/application/nodes/$node_id/allocations" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+allocs = d.get('data', [])
+if not allocs:
+    print('  No allocations.')
+    sys.exit()
+print(f'  {\"ID\":<6} {\"IP\":<16} {\"Port\":<7} {\"Alias\":<20} {\"Assigned\"}')
+print(f'  {\"─\"*5} {\"─\"*15} {\"─\"*6} {\"─\"*19} {\"─\"*8}')
+for a in allocs:
+    aa = a['attributes']
+    aid = aa.get('id', '?')
+    ip = aa.get('ip', '?')
+    port = aa.get('port', '?')
+    alias = aa.get('ip_alias', '-') or '-'
+    assigned = 'Yes' if aa.get('assigned') else 'No'
+    print(f'  {aid:<6} {ip:<16} {port:<7} {alias:<20} {assigned}')
+"
+}
+
+# ── Help ──────────────────────────────────────────────────────
+
+cmd_help() {
+    show_version "pelican"
+    cat <<'HELP'
+
+CLI for Pelican Panel (game server management).
+
+USAGE:
+  pelican <command> [args...]
+
+DASHBOARD:
+  status                            Panel overview — nodes, servers
+  nodes                             List all nodes
+  users                             List all users
+  eggs                              List nests and eggs (server templates)
+
+SERVERS:
+  servers                           List all servers
+  server <id|uuid>                  Detailed server info
+  resources <identifier>            Live resource usage (CPU, memory, disk, network)
+
+POWER:
+  start <identifier>                Start server
+  stop <identifier>                 Stop server
+  restart <identifier>              Restart server
+  kill <identifier>                 Kill server (force stop)
+
+CONSOLE:
+  command <identifier> <cmd...>     Send console command to server
+
+FILES:
+  files <identifier> [directory]    List files in server (default: /)
+
+BACKUPS:
+  backups <identifier>              List server backups
+  backup-create <identifier>        Create new backup
+
+ACTIVITY:
+  activity <identifier>             Server activity log
+  allocations <node_id>             List port allocations for a node
+
+EXAMPLES:
+  pelican status
+  pelican servers
+  pelican server 1
+  pelican resources abc123de
+  pelican start abc123de
+  pelican command abc123de "say Hello everyone!"
+  pelican files abc123de /
+  pelican backups abc123de
+  pelican backup-create abc123de
+  pelican eggs
+
+TOKEN:
+  Retrieved from Vaultwarden (bw CLI) at runtime. Unlock with: bw unlock
+  Store your Pelican API key in Vaultwarden as "Pelican API"
+HELP
+}
+
+# ── Main ──────────────────────────────────────────────────────
+
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                 cmd_status ;;
+        servers|ls)             cmd_servers ;;
+        server|info)            cmd_server "$1" ;;
+        resources|stats|res)    cmd_resources "$1" ;;
+        nodes)                  cmd_nodes ;;
+        users)                  cmd_users ;;
+        eggs|nests)             cmd_eggs ;;
+        allocations|allocs)     cmd_allocations "$1" ;;
+        start)                  cmd_power "$1" start ;;
+        stop)                   cmd_power "$1" stop ;;
+        restart)                cmd_power "$1" restart ;;
+        kill)                   cmd_power "$1" kill ;;
+        command|cmd|say)        cmd_command "$@" ;;
+        files|ls-files)         cmd_files "$1" "${2:-/}" ;;
+        backups)                cmd_backups "$1" ;;
+        backup-create|backup)   cmd_backup_create "$1" ;;
+        activity|log)           cmd_activity "$1" ;;
+        help|--help|-h)         cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
