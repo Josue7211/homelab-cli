@@ -85,3 +85,16 @@ KOEL_URL="http://${PLEX_VM_IP}:8000"
 KOEL_SSH_HOST=""  # SSH alias for docker exec commands
 
 FIRECRAWL_URL="http://${SERVICES_VM_IP}:3002"
+
+# ── OPNsense ─────────────────────────────────────────────────────
+OPNSENSE_HOST="https://192.168.1.1"
+# API key + secret from OPNsense: System > Access > Users > API keys
+OPNSENSE_KEY=""
+OPNSENSE_SECRET=""
+# Or use Bitwarden: set both to empty and configure:
+# OPNSENSE_KEY_SOURCE="bw"
+# OPNSENSE_BW_ENTRY="OPNsense API"
+
+# ── AdGuard Home ─────────────────────────────────────────────────
+ADGUARD_URL="http://192.168.1.10"
+ADGUARD_BW_ENTRY="AdGuard Home"

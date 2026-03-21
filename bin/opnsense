@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+# opnsense - CLI for OPNsense firewall/router
+# Uses REST API with key+secret auth
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Config ───────────────────────────────────────────────────────
+OPN_HOST="${OPNSENSE_HOST:-https://localhost}"
+OPN_KEY="${OPNSENSE_KEY:-}"
+OPN_SECRET="${OPNSENSE_SECRET:-}"
+
+# Fallback to bw if key/secret not in config
+if [[ -z "$OPN_KEY" || -z "$OPN_SECRET" ]]; then
+    OPN_KEY_SOURCE="${OPNSENSE_KEY_SOURCE:-env}"
+    OPN_KEY_BW_ENTRY="${OPNSENSE_BW_ENTRY:-OPNsense API}"
+    if [[ "$OPN_KEY_SOURCE" == "bw" ]]; then
+        OPN_KEY=$(bw get username "$OPN_KEY_BW_ENTRY" 2>/dev/null) || die "Can't get OPNsense key from vault"
+        OPN_SECRET=$(bw get password "$OPN_KEY_BW_ENTRY" 2>/dev/null) || die "Can't get OPNsense secret from vault"
+    fi
+fi
+
+[[ -z "$OPN_KEY" || -z "$OPN_SECRET" ]] && die "OPNSENSE_KEY and OPNSENSE_SECRET must be set in config"
+
+# ── API helpers ──────────────────────────────────────────────────
+opn_get() {
+    local path="$1"
+    curl -sk -u "${OPN_KEY}:${OPN_SECRET}" "${OPN_HOST}/api${path}" 2>/dev/null
+}
+
+opn_post() {
+    local path="$1" data="${2:-{\}}"
+    curl -sk -u "${OPN_KEY}:${OPN_SECRET}" -X POST "${OPN_HOST}/api${path}" \
+        -H "Content-Type: application/json" -d "$data" 2>/dev/null
+}
+
+# ── Commands ─────────────────────────────────────────────────────
+
+cmd_status() {
+    header "OPNSENSE STATUS"
+    echo -e "  Host: ${BOLD}${OPN_HOST}${RESET}"
+    echo ""
+
+    # System info
+    opn_get "/core/firmware/status" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(f'  Version:      {d.get(\"product_version\", \"?\")}-{d.get(\"product_arch\", \"\")}')
+    print(f'  Name:         {d.get(\"product_name\", \"?\")}')
+    needs = d.get('needs_reboot', '0')
+    updates = d.get('updates', 0)
+    if str(updates) != '0':
+        print(f'  Updates:      \033[33m{updates} available\033[0m')
+    else:
+        print(f'  Updates:      \033[32mup to date\033[0m')
+    if str(needs) == '1':
+        print(f'  Reboot:       \033[33mRequired\033[0m')
+except:
+    print('  Could not get firmware info')
+" 2>/dev/null
+
+    echo ""
+
+    # Gateway status
+    opn_get "/routes/gateway/status" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    items = d.get('items', [])
+    if items:
+        print('  GATEWAYS')
+        print('  ─────────────────────────────────────────────────────')
+        for gw in items:
+            name = gw.get('name', '?')
+            addr = gw.get('address', '?')
+            status = gw.get('status_translated', gw.get('status', '?'))
+            delay = gw.get('delay', '-')
+            loss = gw.get('loss', '-')
+            if 'online' in status.lower():
+                icon = '\033[32mONLINE\033[0m'
+            else:
+                icon = '\033[31m' + status.upper() + '\033[0m'
+            print(f'    {name:<20} {addr:<18} {icon}  delay={delay}  loss={loss}')
+except:
+    print('  Could not get gateway info')
+" 2>/dev/null
+}
+
+cmd_interfaces() {
+    header "INTERFACES"
+    opn_get "/diagnostics/interface/getInterfaceStatistics" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    stats = d.get('statistics', d) if isinstance(d, dict) else {}
+    if not stats:
+        print('  No interface data')
+        sys.exit()
+    for iface, data in sorted(stats.items()):
+        if isinstance(data, dict):
+            rx = data.get('bytes received', data.get('received-bytes', 0))
+            tx = data.get('bytes transmitted', data.get('sent-bytes', 0))
+            rx_gb = int(rx) / 1024**3 if rx else 0
+            tx_gb = int(tx) / 1024**3 if tx else 0
+            errs_in = data.get('input errors', data.get('received-errors', 0))
+            errs_out = data.get('output errors', data.get('sent-errors', 0))
+            print(f'  {iface}')
+            print(f'    RX: {rx_gb:.2f} GB    TX: {tx_gb:.2f} GB    Errors: {errs_in}/{errs_out}')
+except Exception as e:
+    print(f'  Error: {e}')
+" 2>/dev/null
+}
+
+cmd_gateways() {
+    header "GATEWAYS"
+    opn_get "/routes/gateway/status" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+items = d.get('items', [])
+if not items:
+    print('  No gateways found')
+    sys.exit()
+print(f'  {\"Name\":<20} {\"Address\":<18} {\"Status\":<12} {\"Delay\":<10} {\"Loss\":<10} {\"StdDev\"}')
+print(f'  {\"─\"*19} {\"─\"*17} {\"─\"*11} {\"─\"*9} {\"─\"*9} {\"─\"*8}')
+for gw in items:
+    name = gw.get('name', '?')
+    addr = gw.get('address', '?')
+    status = gw.get('status_translated', gw.get('status', '?'))
+    delay = gw.get('delay', '-')
+    loss = gw.get('loss', '-')
+    stddev = gw.get('stddev', '-')
+    if 'online' in status.lower():
+        status = '\033[32monline\033[0m    '
+    else:
+        status = '\033[31m' + status + '\033[0m'
+    print(f'  {name:<20} {addr:<18} {status} {delay:<10} {loss:<10} {stddev}')
+" 2>/dev/null
+}
+
+cmd_dhcp_leases() {
+    header "DHCP LEASES"
+    opn_get "/dhcpv4/leases/searchLease" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No leases found')
+    sys.exit()
+print(f'  {\"IP\":<18} {\"MAC\":<20} {\"Hostname\":<25} {\"Status\":<10} {\"Type\"}')
+print(f'  {\"─\"*17} {\"─\"*19} {\"─\"*24} {\"─\"*9} {\"─\"*10}')
+for r in sorted(rows, key=lambda x: [int(p) for p in x.get('address','0.0.0.0').split('.')]):
+    ip = r.get('address', '?')
+    mac = r.get('mac', '?')
+    host = r.get('hostname', '-')[:24]
+    status = r.get('state', '?')
+    ltype = r.get('type', '?')
+    if status == 'active':
+        status = '\033[32mactive\033[0m   '
+    elif status == 'expired':
+        status = '\033[2mexpired\033[0m  '
+    print(f'  {ip:<18} {mac:<20} {host:<25} {status} {ltype}')
+print(f'  Total: {len(rows)} leases')
+" 2>/dev/null
+}
+
+cmd_firewall_rules() {
+    local filter="${1:-}"
+    header "FIREWALL RULES"
+    opn_get "/firewall/filter/searchRule" | python3 -c "
+import sys, json, os
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No rules found')
+    sys.exit()
+filt = '$filter'.lower()
+for r in rows:
+    if filt and filt not in json.dumps(r).lower():
+        continue
+    enabled = '\033[32m+\033[0m' if r.get('enabled') == '1' else '\033[2m-\033[0m'
+    action = r.get('action', '?')
+    proto = r.get('protocol', 'any')
+    src = r.get('source_net', '*')
+    dst = r.get('destination_net', '*')
+    port = r.get('destination_port', '*')
+    desc = r.get('description', '')[:40]
+    if action == 'pass':
+        action_c = '\033[32mPASS\033[0m  '
+    elif action == 'block':
+        action_c = '\033[31mBLOCK\033[0m '
+    elif action == 'reject':
+        action_c = '\033[33mREJECT\033[0m'
+    else:
+        action_c = action
+    print(f'  {enabled} {action_c} {proto:<6} {src:<20} -> {dst:<20} :{port:<8} {desc}')
+" 2>/dev/null
+}
+
+cmd_firmware() {
+    header "FIRMWARE"
+    opn_get "/core/firmware/status" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Product:    {d.get(\"product_name\", \"?\")}')
+print(f'  Version:    {d.get(\"product_version\", \"?\")}')
+print(f'  Arch:       {d.get(\"product_arch\", \"?\")}')
+upgrades = d.get('upgrade_packages', [])
+if upgrades:
+    print(f'  Upgrades:   \033[33m{len(upgrades)} packages\033[0m')
+    for pkg in upgrades[:15]:
+        name = pkg.get('name', '?')
+        cur = pkg.get('current_version', '?')
+        new = pkg.get('new_version', '?')
+        print(f'    {name}: {cur} -> {new}')
+    if len(upgrades) > 15:
+        print(f'    ... and {len(upgrades) - 15} more')
+else:
+    print(f'  Upgrades:   \033[32mnone\033[0m')
+needs = d.get('needs_reboot', '0')
+if str(needs) == '1':
+    print(f'  Reboot:     \033[33mrequired\033[0m')
+" 2>/dev/null
+}
+
+cmd_update_check() {
+    info "  Checking for updates..."
+    opn_post "/core/firmware/check" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+status = d.get('status', '?')
+if status == 'ok':
+    print('  \033[32mUpdate check complete\033[0m')
+else:
+    print(f'  Status: {status}')
+    msg = d.get('status_msg', '')
+    if msg:
+        print(f'  Message: {msg}')
+" 2>/dev/null
+}
+
+cmd_services() {
+    header "SERVICES"
+    opn_get "/core/service/search" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No services found')
+    sys.exit()
+for s in sorted(rows, key=lambda x: x.get('name', '')):
+    name = s.get('name', '?')
+    desc = s.get('description', '')[:40]
+    running = s.get('running', 0)
+    if running:
+        icon = '\033[32mRUNNING\033[0m'
+    else:
+        icon = '\033[31mSTOPPED\033[0m'
+    print(f'  {icon}  {name:<20} {desc}')
+" 2>/dev/null
+}
+
+cmd_service_restart() {
+    local service="$1"
+    [[ -z "$service" ]] && die "Usage: opnsense restart <service_name>"
+    info "  Restarting $service..."
+    opn_post "/core/service/restart/$service" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Result: {d.get(\"result\", d.get(\"response\", \"?\"))}')
+" 2>/dev/null
+}
+
+cmd_arp() {
+    header "ARP TABLE"
+    opn_get "/diagnostics/interface/search_arp" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No ARP entries')
+    sys.exit()
+print(f'  {\"IP\":<18} {\"MAC\":<20} {\"Hostname\":<25} {\"Interface\"}')
+print(f'  {\"─\"*17} {\"─\"*19} {\"─\"*24} {\"─\"*10}')
+for r in sorted(rows, key=lambda x: [int(p) for p in x.get('ip','0.0.0.0').split('.') if p.isdigit()] or [0]):
+    ip = r.get('ip', '?')
+    mac = r.get('mac', '?')
+    host = r.get('hostname', '-')[:24]
+    iface = r.get('intf_description', r.get('intf', '?'))
+    print(f'  {ip:<18} {mac:<20} {host:<25} {iface}')
+print(f'  Total: {len(rows)} entries')
+" 2>/dev/null
+}
+
+cmd_dns() {
+    header "UNBOUND DNS"
+    opn_get "/unbound/diagnostics/listlocaldata" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No local DNS entries')
+    sys.exit()
+for r in sorted(rows, key=lambda x: x.get('name', '')):
+    name = r.get('name', '?').rstrip('.')
+    rtype = r.get('type', '?')
+    value = r.get('value', '?').rstrip('.')
+    print(f'  {name:<40} {rtype:<6} {value}')
+print(f'  Total: {len(rows)} entries')
+" 2>/dev/null
+}
+
+cmd_aliases() {
+    header "FIREWALL ALIASES"
+    opn_get "/firewall/alias/searchItem" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No aliases found')
+    sys.exit()
+for a in sorted(rows, key=lambda x: x.get('name', '')):
+    name = a.get('name', '?')
+    atype = a.get('type', '?')
+    desc = a.get('description', '')[:35]
+    enabled = '\033[32m+\033[0m' if a.get('enabled') == '1' else '\033[2m-\033[0m'
+    content = a.get('content', '')
+    items = len(content.split('\\n')) if content else 0
+    print(f'  {enabled} {name:<25} {atype:<12} {items:>4} items  {desc}')
+" 2>/dev/null
+}
+
+cmd_backup() {
+    local outfile="${1:-opnsense-backup-$(date +%Y%m%d-%H%M%S).xml}"
+    info "  Downloading config backup..."
+    curl -sk -u "${OPN_KEY}:${OPN_SECRET}" "${OPN_HOST}/api/core/backup/download/this" -o "$outfile" 2>/dev/null
+    if [[ -f "$outfile" && -s "$outfile" ]]; then
+        ok "  Saved to $outfile ($(du -h "$outfile" | cut -f1))"
+    else
+        die "Backup download failed"
+    fi
+}
+
+cmd_help() {
+    show_version "opnsense"
+    cat <<'HELP'
+
+CLI for OPNsense firewall/router.
+
+USAGE:
+  opnsense <command> [args...]
+
+DASHBOARD:
+  status                          System status, version, gateways
+  gateways                        Gateway status with latency/loss
+  interfaces                      Interface traffic statistics
+
+NETWORK:
+  dhcp                            DHCP leases
+  arp                             ARP table
+  dns                             Unbound local DNS entries
+
+FIREWALL:
+  rules [filter]                  Firewall rules (optional text filter)
+  aliases                         Firewall aliases
+
+SERVICES:
+  services                        List all services and their status
+  restart <service>               Restart a service
+
+FIRMWARE:
+  firmware                        Firmware version and available upgrades
+  update-check                    Check for updates
+
+BACKUP:
+  backup [filename]               Download config backup as XML
+
+EXAMPLES:
+  opnsense status
+  opnsense dhcp
+  opnsense rules "lan"
+  opnsense services
+  opnsense restart unbound
+  opnsense firmware
+  opnsense backup
+  opnsense arp
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────────
+
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                     cmd_status ;;
+        interfaces|ifaces|if)       cmd_interfaces ;;
+        gateways|gw)                cmd_gateways ;;
+        dhcp|leases)                cmd_dhcp_leases ;;
+        rules|firewall|fw)          cmd_firewall_rules "${1:-}" ;;
+        aliases)                    cmd_aliases ;;
+        firmware|fw-status)         cmd_firmware ;;
+        update-check|check)         cmd_update_check ;;
+        services|svc)               cmd_services ;;
+        restart)                    cmd_service_restart "$1" ;;
+        arp)                        cmd_arp ;;
+        dns|unbound)                cmd_dns ;;
+        backup)                     cmd_backup "${1:-}" ;;
+        help|--help|-h)             cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
