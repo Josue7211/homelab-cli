@@ -20,16 +20,16 @@
 - [x] **PT-03**: Delete stack with confirmation prompt (`portainer delete <inst> <name>`)
 - [x] **PT-04**: Start stopped stack (`portainer start-stack <inst> <name>`)
 - [x] **PT-05**: Stop running stack (`portainer stop-stack <inst> <name>`)
-- [ ] **PT-06**: Update stack environment variables (`portainer update-env <inst> <name> K=V...`)
-- [ ] **PT-07**: Update stack compose file and redeploy (`portainer edit <inst> <name> -f <file>`)
+- [x] **PT-06**: Update stack environment variables (`portainer update-env <inst> <name> K=V...`)
+- [x] **PT-07**: Update stack compose file and redeploy (`portainer edit <inst> <name> -f <file>`)
 
 ### Portainer — Container Management
 
-- [ ] **PT-08**: Stop container (`portainer stop-ct <inst> <name>`)
-- [ ] **PT-09**: Start container (`portainer start-ct <inst> <name>`)
-- [ ] **PT-10**: Inspect container details — ports, mounts, env, state (`portainer inspect <inst> <name>`)
-- [ ] **PT-11**: Execute command in container (`portainer exec <inst> <name> <cmd...>`)
-- [ ] **PT-12**: Show running processes in container (`portainer top <inst> <name>`)
+- [x] **PT-08**: Stop container (`portainer stop-ct <inst> <name>`)
+- [x] **PT-09**: Start container (`portainer start-ct <inst> <name>`)
+- [x] **PT-10**: Inspect container details — ports, mounts, env, state (`portainer inspect <inst> <name>`)
+- [x] **PT-11**: Execute command in container (`portainer exec <inst> <name> <cmd...>`)
+- [x] **PT-12**: Show running processes in container (`portainer top <inst> <name>`)
 
 ### Portainer — Resources
 
@@ -242,13 +242,13 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PT-03 | Phase 2: Portainer | Complete |
 | PT-04 | Phase 2: Portainer | Complete |
 | PT-05 | Phase 2: Portainer | Complete |
-| PT-06 | Phase 2: Portainer | Pending |
-| PT-07 | Phase 2: Portainer | Pending |
-| PT-08 | Phase 2: Portainer | Pending |
-| PT-09 | Phase 2: Portainer | Pending |
-| PT-10 | Phase 2: Portainer | Pending |
-| PT-11 | Phase 2: Portainer | Pending |
-| PT-12 | Phase 2: Portainer | Pending |
+| PT-06 | Phase 2: Portainer | Complete |
+| PT-07 | Phase 2: Portainer | Complete |
+| PT-08 | Phase 2: Portainer | Complete |
+| PT-09 | Phase 2: Portainer | Complete |
+| PT-10 | Phase 2: Portainer | Complete |
+| PT-11 | Phase 2: Portainer | Complete |
+| PT-12 | Phase 2: Portainer | Complete |
 | PT-13 | Phase 2: Portainer | Pending |
 | PT-14 | Phase 2: Portainer | Pending |
 | PT-15 | Phase 2: Portainer | Pending |

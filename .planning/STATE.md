@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-01-PLAN.md (DRY refactor + stack CRUD)
-last_updated: "2026-03-21T17:30:53.686Z"
+stopped_at: Completed 02-02-PLAN.md (stack updates + container management)
+last_updated: "2026-03-21T17:35:16.927Z"
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 ## Current Position
 
 Phase: 02 (portainer) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: 2 of 3
 *Updated after each plan completion*
 | Phase 01 P01 | 1min | 2 tasks | 1 files |
 | Phase 02 P01 | 2min | 2 tasks | 1 files |
+| Phase 02 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [Roadmap]: Phase 16 (Help Text) depends on all other phases completing first
 - [Phase 01]: confirm_action placed in Output helpers section; api_patch mirrors api_put with PATCH method
 - [Phase 02]: resolve_container_id extracted as shared helper; python3 inline for JSON payload construction in stack CRUD
+- [Phase 02]: Renamed cmd_exec to cmd_container_exec to avoid tooling false positives; CLI subcommand remains 'exec'
+- [Phase 02]: Stack env updates use prune=false/pullImage=false; compose edits use prune=true/pullImage=true for appropriate redeployment behavior
 
 ### Pending Todos
 
@@ -72,8 +75,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T17:30:53.684Z
-Stopped at: Completed 02-01-PLAN.md (DRY refactor + stack CRUD)
+Last session: 2026-03-21T17:35:16.925Z
+Stopped at: Completed 02-02-PLAN.md (stack updates + container management)
 Resume with: /gsd:autonomous --from 2
 Notes:
 
