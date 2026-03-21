@@ -70,6 +70,11 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T16:25:55.570Z
-Stopped at: Completed 01-01-PLAN.md
-Resume file: None
+Last session: 2026-03-21
+Stopped at: Phase 1 complete, Phase 2 (Portainer) context written, ready to plan+execute
+Resume with: /gsd:autonomous --from 2
+Notes:
+- BW_SESSION may be expired — user will need to unlock again
+- Pelican CLI (15th CLI) was created outside GSD phases — already committed and working
+- CF Access Service Token created for Pelican API bypass (homelab-cli service token)
+- Project moved from ~/Documents/Projects/homelab-cli to ~/homelab-cli for GSD scope isolation
