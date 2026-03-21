@@ -273,6 +273,87 @@ cmd_stop_stack() {
     ok "Stack '$stack_name' stopped."
 }
 
+cmd_update_env() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    shift 2 || { err "Usage: portainer update-env <instance> <name> K=V..."; exit 1; }
+
+    local stack_id eid
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    eid="${ENDPOINT_IDS[$instance]}"
+
+    # Get current stack data
+    local stack_data compose
+    stack_data=$(pt_api_get "$instance" "/stacks/$stack_id")
+    compose=$(pt_api_get "$instance" "/stacks/$stack_id/file" | python3 -c "import sys,json; print(json.load(sys.stdin).get('StackFileContent', ''))")
+
+    # Build new env array: start with existing, override/add from args
+    local env_json
+    env_json=$(echo "$stack_data" | ARGS="$*" python3 -c "
+import sys, json, os
+stack = json.load(sys.stdin)
+env = {e['name']: e['value'] for e in stack.get('Env', [])}
+for pair in os.environ['ARGS'].split():
+    if '=' in pair:
+        k, v = pair.split('=', 1)
+        env[k] = v
+print(json.dumps([{'name': k, 'value': v} for k, v in sorted(env.items())]))
+")
+
+    info "Updating env vars for stack '$stack_name' on $instance..."
+    local payload
+    payload=$(COMPOSE="$compose" ENV="$env_json" python3 -c "
+import json, os
+print(json.dumps({
+    'stackFileContent': os.environ['COMPOSE'],
+    'env': json.loads(os.environ['ENV']),
+    'prune': False,
+    'pullImage': False
+}))
+")
+    pt_api_put "$instance" "/stacks/$stack_id?endpointId=$eid" -d "$payload" > /dev/null
+    ok "Environment variables updated for '$stack_name'."
+}
+
+cmd_edit() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    shift 2 || { err "Usage: portainer edit <instance> <name> -f <file>"; exit 1; }
+    local file=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -f|--file) file="$2"; shift 2 ;;
+            *) file="$1"; shift ;;
+        esac
+    done
+    [[ -z "$file" ]] && die "Usage: portainer edit <instance> <name> -f <file>"
+    [[ -f "$file" ]] || die "Compose file not found: $file"
+
+    local stack_id eid
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    eid="${ENDPOINT_IDS[$instance]}"
+
+    # Get current env vars
+    local stack_data env_vars
+    stack_data=$(pt_api_get "$instance" "/stacks/$stack_id")
+    env_vars=$(echo "$stack_data" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin).get('Env', [])))")
+
+    local new_compose
+    new_compose=$(cat "$file")
+
+    info "Updating compose and redeploying stack '$stack_name' on $instance..."
+    local payload
+    payload=$(COMPOSE="$new_compose" ENV="$env_vars" python3 -c "
+import json, os
+print(json.dumps({
+    'stackFileContent': os.environ['COMPOSE'],
+    'env': json.loads(os.environ['ENV']),
+    'prune': True,
+    'pullImage': True
+}))
+")
+    pt_api_put "$instance" "/stacks/$stack_id?endpointId=$eid" -d "$payload" > /dev/null
+    ok "Stack '$stack_name' updated and redeployed."
+}
+
 cmd_status() {
     for inst in services plex; do
         local ver
@@ -356,6 +437,8 @@ COMMANDS:
   delete <inst> <name>            Delete stack (with confirmation)
   start-stack <inst> <name>       Start a stopped stack
   stop-stack <inst> <name>        Stop a running stack
+  update-env <inst> <name> K=V...   Update stack environment variables
+  edit <inst> <name> -f <file>      Update stack compose and redeploy
   help                            Show this help
 
 EXAMPLES:
@@ -392,6 +475,8 @@ main() {
         delete|rm)  cmd_delete_stack "$1" "$2" ;;
         start-stack) cmd_start_stack "$1" "$2" ;;
         stop-stack) cmd_stop_stack "$1" "$2" ;;
+        update-env) cmd_update_env "$@" ;;
+        edit)       cmd_edit "$@" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
