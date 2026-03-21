@@ -354,6 +354,148 @@ print(json.dumps({
     ok "Stack '$stack_name' updated and redeployed."
 }
 
+cmd_stop_ct() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local container_id
+    container_id=$(resolve_container_id "$instance" "$container_name")
+    info "Stopping $container_name on $instance..."
+    pt_api_post "$instance" "/endpoints/$eid/docker/containers/$container_id/stop" > /dev/null
+    ok "Container '$container_name' stopped."
+}
+
+cmd_start_ct() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local container_id
+    container_id=$(resolve_container_id "$instance" "$container_name")
+    info "Starting $container_name on $instance..."
+    pt_api_post "$instance" "/endpoints/$eid/docker/containers/$container_id/start" > /dev/null
+    ok "Container '$container_name' started."
+}
+
+cmd_inspect() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local container_id
+    container_id=$(resolve_container_id "$instance" "$container_name")
+    pt_api_get "$instance" "/endpoints/$eid/docker/containers/$container_id/json" | python3 -c "
+import sys, json, re
+data = json.load(sys.stdin)
+state = data.get('State', {})
+config = data.get('Config', {})
+network = data.get('NetworkSettings', {})
+mounts = data.get('Mounts', [])
+
+# Header
+name = data.get('Name', '?').lstrip('/')
+print(f'  Container: {name}')
+print(f'  Image:     {config.get(\"Image\", \"?\")}')
+print(f'  ID:        {data.get(\"Id\", \"?\")[:12]}')
+print(f'  Status:    {state.get(\"Status\", \"?\")}')
+print(f'  Started:   {state.get(\"StartedAt\", \"?\")}')
+print()
+
+# Ports
+ports = network.get('Ports', {})
+if ports:
+    print('  Ports:')
+    for container_port, bindings in sorted(ports.items()):
+        if bindings:
+            for b in bindings:
+                print(f'    {b.get(\"HostIp\",\"0.0.0.0\")}:{b.get(\"HostPort\",\"?\")} -> {container_port}')
+        else:
+            print(f'    {container_port} (not published)')
+    print()
+
+# Mounts
+if mounts:
+    print('  Mounts:')
+    for m in mounts:
+        src = m.get('Source', '?')
+        dst = m.get('Destination', '?')
+        mode = 'ro' if not m.get('RW', True) else 'rw'
+        print(f'    {src} -> {dst} ({mode})')
+    print()
+
+# Env vars (masked)
+env = config.get('Env', [])
+if env:
+    print('  Environment:')
+    sensitive = re.compile(r'(PASSWORD|SECRET|TOKEN|KEY|APIKEY|API_KEY)', re.IGNORECASE)
+    for e in sorted(env):
+        k, _, v = e.partition('=')
+        if sensitive.search(k):
+            print(f'    {k}=********')
+        else:
+            print(f'    {k}={v}')
+    print()
+
+# Networks
+nets = network.get('Networks', {})
+if nets:
+    print('  Networks:')
+    for net_name, net_info in sorted(nets.items()):
+        ip = net_info.get('IPAddress', '?')
+        print(f'    {net_name}: {ip}')
+"
+}
+
+cmd_container_exec() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
+    shift 2 || { err "Usage: portainer exec <instance> <name> <cmd...>"; exit 1; }
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local container_id
+    container_id=$(resolve_container_id "$instance" "$container_name")
+
+    # Create exec instance
+    local exec_payload
+    exec_payload=$(CMD="$*" python3 -c "
+import json, os, shlex
+cmd = shlex.split(os.environ['CMD'])
+print(json.dumps({
+    'AttachStdin': False,
+    'AttachStdout': True,
+    'AttachStderr': True,
+    'Tty': False,
+    'Cmd': cmd
+}))
+")
+
+    local exec_id
+    exec_id=$(pt_api_post "$instance" "/endpoints/$eid/docker/containers/$container_id/exec" -d "$exec_payload" | \
+        python3 -c "import sys,json; print(json.load(sys.stdin).get('Id',''))")
+
+    if [[ -z "$exec_id" ]]; then
+        die "Failed to create exec instance in '$container_name'"
+    fi
+
+    # Start exec instance and stream output
+    pt_api_post "$instance" "/endpoints/$eid/docker/exec/$exec_id/start" \
+        -d '{"Detach": false, "Tty": false}'
+}
+
+cmd_top() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local container_id
+    container_id=$(resolve_container_id "$instance" "$container_name")
+    pt_api_get "$instance" "/endpoints/$eid/docker/containers/$container_id/top" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+titles = data.get('Titles', [])
+procs = data.get('Processes', [])
+if not procs:
+    print('  No running processes.')
+    sys.exit()
+# Print header
+print('  ' + '  '.join(f'{t:<12}' for t in titles))
+print('  ' + '  '.join('-' * 12 for _ in titles))
+for proc in procs:
+    print('  ' + '  '.join(f'{p:<12}' for p in proc))
+"
+}
+
 cmd_status() {
     for inst in services plex; do
         local ver
@@ -439,6 +581,11 @@ COMMANDS:
   stop-stack <inst> <name>        Stop a running stack
   update-env <inst> <name> K=V...   Update stack environment variables
   edit <inst> <name> -f <file>      Update stack compose and redeploy
+  stop-ct <inst> <name>             Stop a container
+  start-ct <inst> <name>            Start a stopped container
+  inspect <inst> <name>             Inspect container (ports, mounts, env, state)
+  exec <inst> <name> <cmd...>       Run command in container
+  top <inst> <name>                 Show running processes in container
   help                            Show this help
 
 EXAMPLES:
@@ -477,6 +624,11 @@ main() {
         stop-stack) cmd_stop_stack "$1" "$2" ;;
         update-env) cmd_update_env "$@" ;;
         edit)       cmd_edit "$@" ;;
+        stop-ct)    cmd_stop_ct "$1" "$2" ;;
+        start-ct)   cmd_start_ct "$1" "$2" ;;
+        inspect)    cmd_inspect "$1" "$2" ;;
+        exec)       cmd_container_exec "$@" ;;
+        top)        cmd_top "$1" "$2" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
