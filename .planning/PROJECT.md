@@ -15,6 +15,7 @@ Every homelab operation available in a web UI can be performed from the command 
 <!-- Shipped and confirmed valuable. -->
 
 - ✓ Portainer: list stacks, containers, logs, restart, redeploy, compose, env — v1.0
+- ✓ Portainer: create, delete, start/stop stacks, update-env, edit, stop/start containers, inspect, exec, top, volumes, volume-rm, networks, images, pull, prune, endpoints — v2.0 (Phase 2)
 - ✓ ARR: status, queue, queue-clear, activity, calendar, search, library, wanted, health, diskspace, system — v1.0
 - ✓ Proxmox/Homelab: status, vms, vm, start, stop, reboot, snapshots, storage — v1.0
 - ✓ Plex: status, streams, libraries, recent, search, history, users, scan — v1.0
