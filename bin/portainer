@@ -122,23 +122,8 @@ for c in sorted(containers, key=lambda x: x.get('Names',[''])[0]):
 cmd_logs() {
     local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2" tail="${3:-100}"
     local eid="${ENDPOINT_IDS[$instance]}"
-
     local container_id
-    container_id=$(pt_api_get "$instance" "/endpoints/$eid/docker/containers/json?all=true" | \
-        SEARCH="$container_name" python3 -c "
-import sys, json, os
-search = os.environ['SEARCH']
-for c in json.load(sys.stdin):
-    if any(n.lstrip('/') == search for n in c.get('Names',[])):
-        print(c['Id'][:12])
-        sys.exit()
-print('NOT_FOUND')
-" 2>/dev/null)
-
-    if [[ "$container_id" == "NOT_FOUND" || -z "$container_id" ]]; then
-        die "Container '$container_name' not found on $instance"
-    fi
-
+    container_id=$(resolve_container_id "$instance" "$container_name")
     pt_api_get "$instance" "/endpoints/$eid/docker/containers/$container_id/logs?stdout=true&stderr=true&tail=$tail" 2>/dev/null | \
         sed 's/^.\{8\}//g'
 }
@@ -146,23 +131,8 @@ print('NOT_FOUND')
 cmd_restart() {
     local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
     local eid="${ENDPOINT_IDS[$instance]}"
-
     local container_id
-    container_id=$(pt_api_get "$instance" "/endpoints/$eid/docker/containers/json?all=true" | \
-        SEARCH="$container_name" python3 -c "
-import sys, json, os
-search = os.environ['SEARCH']
-for c in json.load(sys.stdin):
-    if any(n.lstrip('/') == search for n in c.get('Names',[])):
-        print(c['Id'][:12])
-        sys.exit()
-print('NOT_FOUND')
-" 2>/dev/null)
-
-    if [[ "$container_id" == "NOT_FOUND" || -z "$container_id" ]]; then
-        die "Container '$container_name' not found on $instance"
-    fi
-
+    container_id=$(resolve_container_id "$instance" "$container_name")
     info "Restarting $container_name on $instance..."
     pt_api_post "$instance" "/endpoints/$eid/docker/containers/$container_id/restart" > /dev/null
     ok "Done."
@@ -256,6 +226,27 @@ except:
         exit 1
     fi
     echo "$result"
+}
+
+resolve_container_id() {
+    local instance="$1" container_name="$2"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local container_id
+    container_id=$(pt_api_get "$instance" "/endpoints/$eid/docker/containers/json?all=true" | \
+        SEARCH="$container_name" python3 -c "
+import sys, json, os
+search = os.environ['SEARCH']
+for c in json.load(sys.stdin):
+    if any(n.lstrip('/') == search for n in c.get('Names',[])):
+        print(c['Id'][:12])
+        sys.exit()
+print('NOT_FOUND')
+" 2>/dev/null)
+
+    if [[ "$container_id" == "NOT_FOUND" || -z "$container_id" ]]; then
+        die "Container '$container_name' not found on $instance"
+    fi
+    echo "$container_id"
 }
 
 cmd_help() {
