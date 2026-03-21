@@ -10,6 +10,10 @@ PELICAN_URL="${PELICAN_URL:-http://127.0.0.1:8080}"
 PELICAN_TOKEN_SOURCE="${PELICAN_TOKEN_SOURCE:-bw}"
 PELICAN_TOKEN_BW_ENTRY="${PELICAN_TOKEN_BW_ENTRY:-Pelican API}"
 
+# Cloudflare Access Service Token (bypasses SSO for API calls)
+CF_ACCESS_CLIENT_ID="${PELICAN_CF_CLIENT_ID:-b5bdef6a8df19ce70ea3e0f7461b1b85.access}"
+CF_ACCESS_CLIENT_SECRET="${PELICAN_CF_CLIENT_SECRET:-57b0e726ba1c00cf44f430e0398ef46724238f276973b55fdcc347cd5a748242}"
+
 # ── Token cache ───────────────────────────────────────────────
 _pelican_token=""
 
@@ -31,6 +35,8 @@ pel_api() {
         -H "Authorization: Bearer $token" \
         -H "Accept: application/vnd.pterodactyl.v1+json" \
         -H "Content-Type: application/json" \
+        -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+        -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
         "$@"
 }
 
@@ -399,9 +405,15 @@ for e in events[:25]:
 # ── Commands: Eggs/Nests ──────────────────────────────────────
 
 cmd_eggs() {
-    pel_get "/application/nests?include=eggs" | python3 -c "
+    local response
+    response=$(pel_get "/application/nests?include=eggs" 2>/dev/null) || { echo "  No nests found (or API unavailable)."; return; }
+    [[ -z "$response" ]] && { echo "  No nests found."; return; }
+    echo "$response" | python3 -c "
 import sys, json
-d = json.load(sys.stdin)
+try:
+    d = json.load(sys.stdin)
+except:
+    print('  No nests found.'); sys.exit()
 nests = d.get('data', [])
 if not nests:
     print('  No nests.')
