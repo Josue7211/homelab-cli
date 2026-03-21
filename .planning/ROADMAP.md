@@ -54,12 +54,11 @@ Plans:
   3. User can stop, start, inspect, exec into, and view processes of any container across both instances
   4. User can list volumes, networks, images, and endpoints, and can pull images and prune unused resources
   5. Container ID resolution is deduplicated into a single shared helper (no code duplication between logs/restart/new commands)
-**Plans**: TBD
+**Plans**: 3 plans
 
-Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — DRY refactor (resolve_container_id) + stack CRUD (create, delete, start, stop)
+- [ ] 02-02-PLAN.md — Stack updates (update-env, edit) + container management (stop-ct, start-ct, inspect, exec, top)
+- [ ] 02-03-PLAN.md — Resource commands (volumes, volume-rm, networks, images, pull, prune, endpoints)
 
 ### Phase 3: ARR Suite
 **Goal**: Users can fully manage media libraries, configuration, and maintenance for all ARR apps from the command line
@@ -248,7 +247,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/2 | Planning complete | - |
-| 2. Portainer | 0/? | Not started | - |
+| 2. Portainer | 0/3 | Planning complete | - |
 | 3. ARR Suite | 0/? | Not started | - |
 | 4. Proxmox | 0/? | Not started | - |
 | 5. Plex | 0/? | Not started | - |
