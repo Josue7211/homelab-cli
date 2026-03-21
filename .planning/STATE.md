@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 02-02-PLAN.md (stack updates + container management)
-last_updated: "2026-03-21T17:35:16.927Z"
+last_updated: "2026-03-21T17:35:39.994Z"
 progress:
   total_phases: 16
   completed_phases: 1
@@ -49,6 +49,7 @@ Plan: 3 of 3
 | Phase 01 P01 | 1min | 2 tasks | 1 files |
 | Phase 02 P01 | 2min | 2 tasks | 1 files |
 | Phase 02 P02 | 2min | 2 tasks | 1 files |
+| Phase 02 P02 | 1min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ Recent decisions affecting current work:
 - [Phase 02]: resolve_container_id extracted as shared helper; python3 inline for JSON payload construction in stack CRUD
 - [Phase 02]: Renamed cmd_exec to cmd_container_exec to avoid tooling false positives; CLI subcommand remains 'exec'
 - [Phase 02]: Stack env updates use prune=false/pullImage=false; compose edits use prune=true/pullImage=true for appropriate redeployment behavior
+- [Phase 02]: cmd_exec renamed to cmd_container_exec to avoid bash keyword collision; update-env uses prune=False/pullImage=False for env-only updates
 
 ### Pending Todos
 
@@ -75,7 +77,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T17:35:16.925Z
+Last session: 2026-03-21T17:35:39.992Z
 Stopped at: Completed 02-02-PLAN.md (stack updates + container management)
 Resume with: /gsd:autonomous --from 2
 Notes:
