@@ -41,7 +41,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Common library helpers (confirm_action, api_patch)
+- [x] 01-01-PLAN.md — Common library helpers (confirm_action, api_patch)
 - [ ] 01-02-PLAN.md — OpenCLI registration for all 14 CLIs
 
 ### Phase 2: Portainer

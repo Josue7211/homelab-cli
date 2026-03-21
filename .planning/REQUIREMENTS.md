@@ -197,8 +197,8 @@
 
 ### Common Library
 
-- [ ] **LIB-01**: Add `confirm_action` helper — prompts "Are you sure? (y/N)" for destructive operations
-- [ ] **LIB-02**: Add `api_patch` helper for PATCH requests
+- [x] **LIB-01**: Add `confirm_action` helper — prompts "Are you sure? (y/N)" for destructive operations
+- [x] **LIB-02**: Add `api_patch` helper for PATCH requests
 
 ### Help Text Updates
 
@@ -232,8 +232,8 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LIB-01 | Phase 1: Foundation | Pending |
-| LIB-02 | Phase 1: Foundation | Pending |
+| LIB-01 | Phase 1: Foundation | Complete |
+| LIB-02 | Phase 1: Foundation | Complete |
 | OCLI-01 | Phase 1: Foundation | Pending |
 | OCLI-02 | Phase 1: Foundation | Pending |
 | OCLI-03 | Phase 1: Foundation | Pending |
