@@ -230,17 +230,142 @@ Deferred to future milestone. Tracked but not in current roadmap.
 
 ## Traceability
 
-Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| LIB-01 | Phase 1: Foundation | Pending |
+| LIB-02 | Phase 1: Foundation | Pending |
+| OCLI-01 | Phase 1: Foundation | Pending |
+| OCLI-02 | Phase 1: Foundation | Pending |
+| OCLI-03 | Phase 1: Foundation | Pending |
+| PT-01 | Phase 2: Portainer | Pending |
+| PT-02 | Phase 2: Portainer | Pending |
+| PT-03 | Phase 2: Portainer | Pending |
+| PT-04 | Phase 2: Portainer | Pending |
+| PT-05 | Phase 2: Portainer | Pending |
+| PT-06 | Phase 2: Portainer | Pending |
+| PT-07 | Phase 2: Portainer | Pending |
+| PT-08 | Phase 2: Portainer | Pending |
+| PT-09 | Phase 2: Portainer | Pending |
+| PT-10 | Phase 2: Portainer | Pending |
+| PT-11 | Phase 2: Portainer | Pending |
+| PT-12 | Phase 2: Portainer | Pending |
+| PT-13 | Phase 2: Portainer | Pending |
+| PT-14 | Phase 2: Portainer | Pending |
+| PT-15 | Phase 2: Portainer | Pending |
+| PT-16 | Phase 2: Portainer | Pending |
+| PT-17 | Phase 2: Portainer | Pending |
+| PT-18 | Phase 2: Portainer | Pending |
+| PT-19 | Phase 2: Portainer | Pending |
+| PT-20 | Phase 2: Portainer | Pending |
+| ARR-01 | Phase 3: ARR Suite | Pending |
+| ARR-02 | Phase 3: ARR Suite | Pending |
+| ARR-03 | Phase 3: ARR Suite | Pending |
+| ARR-04 | Phase 3: ARR Suite | Pending |
+| ARR-05 | Phase 3: ARR Suite | Pending |
+| ARR-06 | Phase 3: ARR Suite | Pending |
+| ARR-07 | Phase 3: ARR Suite | Pending |
+| ARR-08 | Phase 3: ARR Suite | Pending |
+| ARR-09 | Phase 3: ARR Suite | Pending |
+| ARR-10 | Phase 3: ARR Suite | Pending |
+| ARR-11 | Phase 3: ARR Suite | Pending |
+| ARR-12 | Phase 3: ARR Suite | Pending |
+| ARR-13 | Phase 3: ARR Suite | Pending |
+| ARR-14 | Phase 3: ARR Suite | Pending |
+| PVE-01 | Phase 4: Proxmox | Pending |
+| PVE-02 | Phase 4: Proxmox | Pending |
+| PVE-03 | Phase 4: Proxmox | Pending |
+| PVE-04 | Phase 4: Proxmox | Pending |
+| PVE-05 | Phase 4: Proxmox | Pending |
+| PVE-06 | Phase 4: Proxmox | Pending |
+| PVE-07 | Phase 4: Proxmox | Pending |
+| PVE-08 | Phase 4: Proxmox | Pending |
+| PVE-09 | Phase 4: Proxmox | Pending |
+| PVE-10 | Phase 4: Proxmox | Pending |
+| PVE-11 | Phase 4: Proxmox | Pending |
+| PLEX-01 | Phase 5: Plex | Pending |
+| PLEX-02 | Phase 5: Plex | Pending |
+| PLEX-03 | Phase 5: Plex | Pending |
+| PLEX-04 | Phase 5: Plex | Pending |
+| PLEX-05 | Phase 5: Plex | Pending |
+| PLEX-06 | Phase 5: Plex | Pending |
+| PLEX-07 | Phase 5: Plex | Pending |
+| PLEX-08 | Phase 5: Plex | Pending |
+| JF-01 | Phase 6: Jellyfin | Pending |
+| JF-02 | Phase 6: Jellyfin | Pending |
+| JF-03 | Phase 6: Jellyfin | Pending |
+| JF-04 | Phase 6: Jellyfin | Pending |
+| JF-05 | Phase 6: Jellyfin | Pending |
+| JF-06 | Phase 6: Jellyfin | Pending |
+| JF-07 | Phase 6: Jellyfin | Pending |
+| JF-08 | Phase 6: Jellyfin | Pending |
+| QBT-01 | Phase 7: qBittorrent | Pending |
+| QBT-02 | Phase 7: qBittorrent | Pending |
+| QBT-03 | Phase 7: qBittorrent | Pending |
+| QBT-04 | Phase 7: qBittorrent | Pending |
+| QBT-05 | Phase 7: qBittorrent | Pending |
+| QBT-06 | Phase 7: qBittorrent | Pending |
+| QBT-07 | Phase 7: qBittorrent | Pending |
+| QBT-08 | Phase 7: qBittorrent | Pending |
+| QBT-09 | Phase 7: qBittorrent | Pending |
+| QBT-10 | Phase 7: qBittorrent | Pending |
+| AG-01 | Phase 8: AdGuard | Pending |
+| AG-02 | Phase 8: AdGuard | Pending |
+| AG-03 | Phase 8: AdGuard | Pending |
+| AG-04 | Phase 8: AdGuard | Pending |
+| AG-05 | Phase 8: AdGuard | Pending |
+| AG-06 | Phase 8: AdGuard | Pending |
+| AG-07 | Phase 8: AdGuard | Pending |
+| AG-08 | Phase 8: AdGuard | Pending |
+| OPN-01 | Phase 9: OPNsense | Pending |
+| OPN-02 | Phase 9: OPNsense | Pending |
+| OPN-03 | Phase 9: OPNsense | Pending |
+| OPN-04 | Phase 9: OPNsense | Pending |
+| OPN-05 | Phase 9: OPNsense | Pending |
+| OPN-06 | Phase 9: OPNsense | Pending |
+| OPN-07 | Phase 9: OPNsense | Pending |
+| OPN-08 | Phase 9: OPNsense | Pending |
+| SAB-01 | Phase 10: SABnzbd | Pending |
+| SAB-02 | Phase 10: SABnzbd | Pending |
+| SAB-03 | Phase 10: SABnzbd | Pending |
+| SAB-04 | Phase 10: SABnzbd | Pending |
+| SAB-05 | Phase 10: SABnzbd | Pending |
+| SAB-06 | Phase 10: SABnzbd | Pending |
+| SAB-07 | Phase 10: SABnzbd | Pending |
+| SAB-08 | Phase 10: SABnzbd | Pending |
+| GLU-01 | Phase 11: Gluetun | Pending |
+| GLU-02 | Phase 11: Gluetun | Pending |
+| GLU-03 | Phase 11: Gluetun | Pending |
+| GLU-04 | Phase 11: Gluetun | Pending |
+| GLU-05 | Phase 11: Gluetun | Pending |
+| GLU-06 | Phase 11: Gluetun | Pending |
+| OVR-01 | Phase 12: Overseerr | Pending |
+| OVR-02 | Phase 12: Overseerr | Pending |
+| OVR-03 | Phase 12: Overseerr | Pending |
+| OVR-04 | Phase 12: Overseerr | Pending |
+| OVR-05 | Phase 12: Overseerr | Pending |
+| BW-01 | Phase 13: Vault | Pending |
+| BW-02 | Phase 13: Vault | Pending |
+| BW-03 | Phase 13: Vault | Pending |
+| BW-04 | Phase 13: Vault | Pending |
+| BW-05 | Phase 13: Vault | Pending |
+| BW-06 | Phase 13: Vault | Pending |
+| FC-01 | Phase 14: Firecrawl | Pending |
+| FC-02 | Phase 14: Firecrawl | Pending |
+| FC-03 | Phase 14: Firecrawl | Pending |
+| FC-04 | Phase 14: Firecrawl | Pending |
+| FC-05 | Phase 14: Firecrawl | Pending |
+| KOEL-01 | Phase 15: Koel | Pending |
+| KOEL-02 | Phase 15: Koel | Pending |
+| KOEL-03 | Phase 15: Koel | Pending |
+| KOEL-04 | Phase 15: Koel | Pending |
+| KOEL-05 | Phase 15: Koel | Pending |
+| HELP-01 | Phase 16: Help Text | Pending |
 
 **Coverage:**
-- v1 requirements: 135 total
-- Mapped to phases: 0
-- Unmapped: 135 ⚠️
+- v1 requirements: 128 total
+- Mapped to phases: 128
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-21*
-*Last updated: 2026-03-21 after initial definition*
+*Last updated: 2026-03-21 after roadmap creation*
