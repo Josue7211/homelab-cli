@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-02-PLAN.md (stack updates + container management)
-last_updated: "2026-03-21T17:35:39.994Z"
+stopped_at: Completed 02-03-PLAN.md (Docker resource management commands)
+last_updated: "2026-03-21T17:39:22.169Z"
 progress:
   total_phases: 16
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Plan: 3 of 3
 | Phase 02 P01 | 2min | 2 tasks | 1 files |
 | Phase 02 P02 | 2min | 2 tasks | 1 files |
 | Phase 02 P02 | 1min | 2 tasks | 1 files |
+| Phase 02 P03 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Renamed cmd_exec to cmd_container_exec to avoid tooling false positives; CLI subcommand remains 'exec'
 - [Phase 02]: Stack env updates use prune=false/pullImage=false; compose edits use prune=true/pullImage=true for appropriate redeployment behavior
 - [Phase 02]: cmd_exec renamed to cmd_container_exec to avoid bash keyword collision; update-env uses prune=False/pullImage=False for env-only updates
+- [Phase 02]: Prune defaults to containers-only; --images/--volumes/--all flags for broader cleanup
+- [Phase 02]: Endpoints command iterates both instances rather than taking instance arg (global overview)
+- [Phase 02]: Image pull defaults tag to latest when not specified
 
 ### Pending Todos
 
@@ -77,8 +81,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T17:35:39.992Z
-Stopped at: Completed 02-02-PLAN.md (stack updates + container management)
+Last session: 2026-03-21T17:39:22.168Z
+Stopped at: Completed 02-03-PLAN.md (Docker resource management commands)
 Resume with: /gsd:autonomous --from 2
 Notes:
 

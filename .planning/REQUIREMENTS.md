@@ -33,13 +33,13 @@
 
 ### Portainer — Resources
 
-- [ ] **PT-13**: List Docker volumes (`portainer volumes [inst]`)
-- [ ] **PT-14**: Remove volume with confirmation (`portainer volume-rm <inst> <name>`)
-- [ ] **PT-15**: List Docker networks with subnet info (`portainer networks [inst]`)
-- [ ] **PT-16**: List Docker images with sizes (`portainer images [inst]`)
-- [ ] **PT-17**: Pull Docker image (`portainer pull <inst> <image[:tag]>`)
-- [ ] **PT-18**: Prune unused resources with confirmation (`portainer prune <inst> [--images] [--volumes] [--all]`)
-- [ ] **PT-19**: List Docker endpoints (`portainer endpoints`)
+- [x] **PT-13**: List Docker volumes (`portainer volumes [inst]`)
+- [x] **PT-14**: Remove volume with confirmation (`portainer volume-rm <inst> <name>`)
+- [x] **PT-15**: List Docker networks with subnet info (`portainer networks [inst]`)
+- [x] **PT-16**: List Docker images with sizes (`portainer images [inst]`)
+- [x] **PT-17**: Pull Docker image (`portainer pull <inst> <image[:tag]>`)
+- [x] **PT-18**: Prune unused resources with confirmation (`portainer prune <inst> [--images] [--volumes] [--all]`)
+- [x] **PT-19**: List Docker endpoints (`portainer endpoints`)
 
 ### Portainer — DRY Refactor
 
@@ -249,13 +249,13 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PT-10 | Phase 2: Portainer | Complete |
 | PT-11 | Phase 2: Portainer | Complete |
 | PT-12 | Phase 2: Portainer | Complete |
-| PT-13 | Phase 2: Portainer | Pending |
-| PT-14 | Phase 2: Portainer | Pending |
-| PT-15 | Phase 2: Portainer | Pending |
-| PT-16 | Phase 2: Portainer | Pending |
-| PT-17 | Phase 2: Portainer | Pending |
-| PT-18 | Phase 2: Portainer | Pending |
-| PT-19 | Phase 2: Portainer | Pending |
+| PT-13 | Phase 2: Portainer | Complete |
+| PT-14 | Phase 2: Portainer | Complete |
+| PT-15 | Phase 2: Portainer | Complete |
+| PT-16 | Phase 2: Portainer | Complete |
+| PT-17 | Phase 2: Portainer | Complete |
+| PT-18 | Phase 2: Portainer | Complete |
+| PT-19 | Phase 2: Portainer | Complete |
 | PT-20 | Phase 2: Portainer | Complete |
 | ARR-01 | Phase 3: ARR Suite | Pending |
 | ARR-02 | Phase 3: ARR Suite | Pending |

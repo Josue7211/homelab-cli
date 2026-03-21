@@ -58,7 +58,7 @@ Plans:
 
 - [x] 02-01-PLAN.md — DRY refactor (resolve_container_id) + stack CRUD (create, delete, start, stop)
 - [x] 02-02-PLAN.md — Stack updates (update-env, edit) + container management (stop-ct, start-ct, inspect, exec, top)
-- [ ] 02-03-PLAN.md — Resource commands (volumes, volume-rm, networks, images, pull, prune, endpoints)
+- [x] 02-03-PLAN.md — Resource commands (volumes, volume-rm, networks, images, pull, prune, endpoints)
 
 ### Phase 3: ARR Suite
 **Goal**: Users can fully manage media libraries, configuration, and maintenance for all ARR apps from the command line
