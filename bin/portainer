@@ -496,6 +496,105 @@ for proc in procs:
 "
 }
 
+cmd_volumes() {
+    local instance="${1:-$DEFAULT_INSTANCE}"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    pt_api_get "$instance" "/endpoints/$eid/docker/volumes" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+volumes = data.get('Volumes', [])
+if not volumes:
+    print('  No volumes found.')
+    sys.exit()
+print(f'  {\"Name\":<40} {\"Driver\":<10} {\"Mountpoint\"}')
+print(f'  {\"─\"*39} {\"─\"*9} {\"─\"*40}')
+for v in sorted(volumes, key=lambda x: x.get('Name', '')):
+    name = v.get('Name', '?')
+    if len(name) > 38:
+        name = name[:35] + '...'
+    driver = v.get('Driver', '?')
+    mount = v.get('Mountpoint', '?')
+    print(f'  {name:<40} {driver:<10} {mount}')
+print(f'\n  Total: {len(volumes)} volumes')
+"
+}
+
+cmd_networks() {
+    local instance="${1:-$DEFAULT_INSTANCE}"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    pt_api_get "$instance" "/endpoints/$eid/docker/networks" | python3 -c "
+import sys, json
+networks = json.load(sys.stdin)
+if not networks:
+    print('  No networks found.')
+    sys.exit()
+print(f'  {\"Name\":<30} {\"Driver\":<12} {\"Scope\":<10} {\"Subnet\"}')
+print(f'  {\"─\"*29} {\"─\"*11} {\"─\"*9} {\"─\"*18}')
+for n in sorted(networks, key=lambda x: x.get('Name', '')):
+    name = n.get('Name', '?')
+    driver = n.get('Driver', '?')
+    scope = n.get('Scope', '?')
+    ipam = n.get('IPAM', {}).get('Config', [])
+    subnet = ipam[0].get('Subnet', '-') if ipam else '-'
+    print(f'  {name:<30} {driver:<12} {scope:<10} {subnet}')
+"
+}
+
+cmd_images() {
+    local instance="${1:-$DEFAULT_INSTANCE}"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    pt_api_get "$instance" "/endpoints/$eid/docker/images/json" | python3 -c "
+import sys, json
+images = json.load(sys.stdin)
+if not images:
+    print('  No images found.')
+    sys.exit()
+
+def human_size(b):
+    for u in ['B','KB','MB','GB','TB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} PB'
+
+print(f'  {\"Repository:Tag\":<55} {\"Size\":<12} {\"ID\"}')
+print(f'  {\"─\"*54} {\"─\"*11} {\"─\"*12}')
+total_size = 0
+for img in sorted(images, key=lambda x: (x.get('RepoTags') or ['<none>'])[0]):
+    tags = img.get('RepoTags') or ['<none>:<none>']
+    size = img.get('Size', 0)
+    total_size += size
+    img_id = img.get('Id', '?').replace('sha256:', '')[:12]
+    for tag in tags:
+        if len(tag) > 53:
+            tag = tag[:50] + '...'
+        print(f'  {tag:<55} {human_size(size):<12} {img_id}')
+print(f'\n  Total: {len(images)} images, {human_size(total_size)}')
+"
+}
+
+cmd_endpoints() {
+    for inst in services plex; do
+        header "$inst (${URLS[$inst]})"
+        pt_api_get "$inst" "/endpoints" | python3 -c "
+import sys, json
+endpoints = json.load(sys.stdin)
+if not endpoints:
+    print('  No endpoints found.')
+    sys.exit()
+print(f'  {\"ID\":<5} {\"Name\":<25} {\"Type\":<8} {\"URL\":<35} {\"Status\"}')
+print(f'  {\"─\"*4} {\"─\"*24} {\"─\"*7} {\"─\"*34} {\"─\"*8}')
+type_map = {1: 'Docker', 2: 'Agent', 3: 'Azure', 4: 'Edge', 5: 'K8s'}
+for ep in sorted(endpoints, key=lambda x: x.get('Id', 0)):
+    eid = ep.get('Id', '?')
+    name = ep.get('Name', '?')
+    etype = type_map.get(ep.get('Type', 0), '?')
+    url = ep.get('URL', '?')
+    status = 'Up' if ep.get('Status', 0) == 1 else 'Down'
+    print(f'  {eid:<5} {name:<25} {etype:<8} {url:<35} {status}')
+" 2>/dev/null || warn "  Could not reach $inst"
+    done
+}
+
 cmd_status() {
     for inst in services plex; do
         local ver
@@ -586,6 +685,10 @@ COMMANDS:
   inspect <inst> <name>             Inspect container (ports, mounts, env, state)
   exec <inst> <name> <cmd...>       Run command in container
   top <inst> <name>                 Show running processes in container
+  volumes [instance]              List Docker volumes
+  networks [instance]             List Docker networks with subnets
+  images [instance]               List Docker images with sizes
+  endpoints                       List all Portainer endpoints
   help                            Show this help
 
 EXAMPLES:
@@ -629,6 +732,10 @@ main() {
         inspect)    cmd_inspect "$1" "$2" ;;
         exec)       cmd_container_exec "$@" ;;
         top)        cmd_top "$1" "$2" ;;
+        volumes)    cmd_volumes "${1:-$DEFAULT_INSTANCE}" ;;
+        networks)   cmd_networks "${1:-$DEFAULT_INSTANCE}" ;;
+        images)     cmd_images "${1:-$DEFAULT_INSTANCE}" ;;
+        endpoints)  cmd_endpoints ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
