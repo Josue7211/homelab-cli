@@ -29,6 +29,23 @@ err()   { echo -e "${RED}Error: ${1}${RESET}" >&2; }
 die()   { err "$1"; exit 1; }
 header(){ echo -e "\n${BOLD}  $1${RESET}"; echo "  ─────────────────────────────────────────────────────"; }
 
+# ── Confirmation helper ─────────────────────────────────────────
+# Usage: confirm_action "Delete stack 'myapp'?"
+#   Prompts "Are you sure? (y/N)" and exits 1 if user doesn't type y/Y.
+#   Respects HOMELAB_YES=1 env var to skip prompt (for scripting).
+confirm_action() {
+    local msg="${1:-Proceed?}"
+    if [[ "${HOMELAB_YES:-0}" == "1" ]]; then
+        return 0
+    fi
+    echo -en "${YELLOW}${msg} Are you sure? (y/N): ${RESET}"
+    read -r answer
+    case "$answer" in
+        [yY]) return 0 ;;
+        *) echo "Aborted."; exit 1 ;;
+    esac
+}
+
 # ── Secret retrieval ─────────────────────────────────────────────
 # Usage: get_secret <source> [bw_entry] [env_var] [file_path]
 #   source: bw | env | file | config | value
@@ -114,6 +131,13 @@ api_put() {
     local -a headers=(-H "Content-Type: application/json")
     [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
     curl -sf -X PUT "$url" "${headers[@]}" -d "$data" 2>/dev/null
+}
+
+api_patch() {
+    local url="$1" api_key="${2:-}" data="${3:-}"
+    local -a headers=(-H "Content-Type: application/json")
+    [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
+    curl -sf -X PATCH "$url" "${headers[@]}" -d "$data" 2>/dev/null
 }
 
 # ── Formatting helpers ───────────────────────────────────────────
