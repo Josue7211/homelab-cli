@@ -595,6 +595,94 @@ for ep in sorted(endpoints, key=lambda x: x.get('Id', 0)):
     done
 }
 
+cmd_volume_rm() {
+    local instance="${1:-$DEFAULT_INSTANCE}" volume_name="$2"
+    [[ -z "$volume_name" ]] && die "Usage: portainer volume-rm <instance> <name>"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    confirm_action "Remove volume '$volume_name' on $instance?"
+    info "Removing volume '$volume_name'..."
+    pt_api_delete "$instance" "/endpoints/$eid/docker/volumes/$volume_name"
+    ok "Volume '$volume_name' removed."
+}
+
+cmd_pull() {
+    local instance="${1:-$DEFAULT_INSTANCE}" image_ref="$2"
+    [[ -z "$image_ref" ]] && die "Usage: portainer pull <instance> <image[:tag]>"
+    local eid="${ENDPOINT_IDS[$instance]}"
+
+    # Split image:tag
+    local image tag
+    if [[ "$image_ref" == *:* ]]; then
+        image="${image_ref%%:*}"
+        tag="${image_ref##*:}"
+    else
+        image="$image_ref"
+        tag="latest"
+    fi
+
+    info "Pulling $image:$tag on $instance..."
+    pt_api_post "$instance" "/endpoints/$eid/docker/images/create?fromImage=$image&tag=$tag" > /dev/null
+    ok "Image $image:$tag pulled successfully."
+}
+
+cmd_prune() {
+    local instance="${1:-$DEFAULT_INSTANCE}"
+    shift || true
+    local eid="${ENDPOINT_IDS[$instance]}"
+    local prune_images=false prune_volumes=false prune_all=false
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --images)  prune_images=true; shift ;;
+            --volumes) prune_volumes=true; shift ;;
+            --all)     prune_all=true; shift ;;
+            *) err "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    # Build description of what will be pruned
+    local desc="stopped containers"
+    if [[ "$prune_all" == "true" ]]; then
+        desc="stopped containers, unused images, and unused volumes"
+    else
+        [[ "$prune_images" == "true" ]] && desc+=", dangling images"
+        [[ "$prune_volumes" == "true" ]] && desc+=", unused volumes"
+    fi
+
+    confirm_action "Prune $desc on $instance?"
+
+    info "Pruning on $instance..."
+
+    # Always prune stopped containers
+    local result
+    result=$(pt_api_post "$instance" "/endpoints/$eid/docker/containers/prune")
+    local ct_count
+    ct_count=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('ContainersDeleted') or []))" 2>/dev/null || echo "0")
+    echo "  Containers removed: $ct_count"
+
+    # Prune images
+    if [[ "$prune_images" == "true" || "$prune_all" == "true" ]]; then
+        local img_filter=""
+        [[ "$prune_all" == "true" ]] && img_filter='?filters=%7B%22dangling%22%3A%5B%22false%22%5D%7D'
+        result=$(pt_api_post "$instance" "/endpoints/$eid/docker/images/prune$img_filter")
+        local img_count
+        img_count=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('ImagesDeleted') or []))" 2>/dev/null || echo "0")
+        local space
+        space=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); b=d.get('SpaceReclaimed',0); [print(f'{b/u:.1f} {n}') for b,u,n in [(b,1024**3,'GB'),(b,1024**2,'MB')] if b/u>=1][:1] or print(f'{b} B')" 2>/dev/null || echo "?")
+        echo "  Images removed: $img_count (reclaimed: $space)"
+    fi
+
+    # Prune volumes
+    if [[ "$prune_volumes" == "true" || "$prune_all" == "true" ]]; then
+        result=$(pt_api_post "$instance" "/endpoints/$eid/docker/volumes/prune")
+        local vol_count
+        vol_count=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('VolumesDeleted') or []))" 2>/dev/null || echo "0")
+        echo "  Volumes removed: $vol_count"
+    fi
+
+    ok "Prune complete."
+}
+
 cmd_status() {
     for inst in services plex; do
         local ver
@@ -686,8 +774,11 @@ COMMANDS:
   exec <inst> <name> <cmd...>       Run command in container
   top <inst> <name>                 Show running processes in container
   volumes [instance]              List Docker volumes
+  volume-rm <inst> <name>         Remove a volume (with confirmation)
   networks [instance]             List Docker networks with subnets
   images [instance]               List Docker images with sizes
+  pull <inst> <image[:tag]>       Pull a Docker image
+  prune <inst> [--images] [--volumes] [--all]  Prune unused resources
   endpoints                       List all Portainer endpoints
   help                            Show this help
 
@@ -699,6 +790,13 @@ EXAMPLES:
   portainer compose plex music
   portainer redeploy plex music
   portainer restart services firecrawl
+  portainer volumes services
+  portainer volume-rm services my_old_volume
+  portainer networks plex
+  portainer images services
+  portainer pull services nginx:latest
+  portainer prune services --all
+  portainer endpoints
 
 TOKENS:
   Retrieved from Vaultwarden (bw CLI) at runtime. Unlock with: bw unlock
@@ -733,8 +831,11 @@ main() {
         exec)       cmd_container_exec "$@" ;;
         top)        cmd_top "$1" "$2" ;;
         volumes)    cmd_volumes "${1:-$DEFAULT_INSTANCE}" ;;
+        volume-rm)  cmd_volume_rm "$1" "$2" ;;
         networks)   cmd_networks "${1:-$DEFAULT_INSTANCE}" ;;
         images)     cmd_images "${1:-$DEFAULT_INSTANCE}" ;;
+        pull)       cmd_pull "$1" "$2" ;;
+        prune)      cmd_prune "$@" ;;
         endpoints)  cmd_endpoints ;;
         help|--help|-h) cmd_help ;;
         *)
