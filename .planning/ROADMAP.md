@@ -38,11 +38,11 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
   2. Any CLI can make PATCH API requests using the shared api_patch helper
   3. `opencli list` shows all 14 homelab CLIs with `[installed]` tag
   4. `opencli portainer stacks` (or any CLI passthrough) executes the correct underlying CLI command
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Common library helpers (confirm_action, api_patch)
+- [ ] 01-02-PLAN.md — OpenCLI registration for all 14 CLIs
 
 ### Phase 2: Portainer
 **Goal**: Users can fully manage Docker stacks, containers, and resources across both Portainer instances from the command line
@@ -247,7 +247,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/2 | Planning complete | - |
 | 2. Portainer | 0/? | Not started | - |
 | 3. ARR Suite | 0/? | Not started | - |
 | 4. Proxmox | 0/? | Not started | - |
