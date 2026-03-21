@@ -15,11 +15,11 @@
 
 ### Portainer — Stack Management
 
-- [ ] **PT-01**: Create stack from compose file (`portainer create <inst> <name> -f <file> [--env K=V...]`)
-- [ ] **PT-02**: Create stack from stdin (`echo "yaml..." | portainer create <inst> <name> --inline`)
-- [ ] **PT-03**: Delete stack with confirmation prompt (`portainer delete <inst> <name>`)
-- [ ] **PT-04**: Start stopped stack (`portainer start-stack <inst> <name>`)
-- [ ] **PT-05**: Stop running stack (`portainer stop-stack <inst> <name>`)
+- [x] **PT-01**: Create stack from compose file (`portainer create <inst> <name> -f <file> [--env K=V...]`)
+- [x] **PT-02**: Create stack from stdin (`echo "yaml..." | portainer create <inst> <name> --inline`)
+- [x] **PT-03**: Delete stack with confirmation prompt (`portainer delete <inst> <name>`)
+- [x] **PT-04**: Start stopped stack (`portainer start-stack <inst> <name>`)
+- [x] **PT-05**: Stop running stack (`portainer stop-stack <inst> <name>`)
 - [ ] **PT-06**: Update stack environment variables (`portainer update-env <inst> <name> K=V...`)
 - [ ] **PT-07**: Update stack compose file and redeploy (`portainer edit <inst> <name> -f <file>`)
 
@@ -43,7 +43,7 @@
 
 ### Portainer — DRY Refactor
 
-- [ ] **PT-20**: Extract `resolve_container_id` shared helper (deduplicate from logs/restart)
+- [x] **PT-20**: Extract `resolve_container_id` shared helper (deduplicate from logs/restart)
 
 ### ARR Suite — Library Management
 
@@ -237,11 +237,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | OCLI-01 | Phase 1: Foundation | Pending |
 | OCLI-02 | Phase 1: Foundation | Pending |
 | OCLI-03 | Phase 1: Foundation | Pending |
-| PT-01 | Phase 2: Portainer | Pending |
-| PT-02 | Phase 2: Portainer | Pending |
-| PT-03 | Phase 2: Portainer | Pending |
-| PT-04 | Phase 2: Portainer | Pending |
-| PT-05 | Phase 2: Portainer | Pending |
+| PT-01 | Phase 2: Portainer | Complete |
+| PT-02 | Phase 2: Portainer | Complete |
+| PT-03 | Phase 2: Portainer | Complete |
+| PT-04 | Phase 2: Portainer | Complete |
+| PT-05 | Phase 2: Portainer | Complete |
 | PT-06 | Phase 2: Portainer | Pending |
 | PT-07 | Phase 2: Portainer | Pending |
 | PT-08 | Phase 2: Portainer | Pending |
@@ -256,7 +256,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PT-17 | Phase 2: Portainer | Pending |
 | PT-18 | Phase 2: Portainer | Pending |
 | PT-19 | Phase 2: Portainer | Pending |
-| PT-20 | Phase 2: Portainer | Pending |
+| PT-20 | Phase 2: Portainer | Complete |
 | ARR-01 | Phase 3: ARR Suite | Pending |
 | ARR-02 | Phase 3: ARR Suite | Pending |
 | ARR-03 | Phase 3: ARR Suite | Pending |

@@ -56,7 +56,7 @@ Plans:
   5. Container ID resolution is deduplicated into a single shared helper (no code duplication between logs/restart/new commands)
 **Plans**: 3 plans
 
-- [ ] 02-01-PLAN.md — DRY refactor (resolve_container_id) + stack CRUD (create, delete, start, stop)
+- [x] 02-01-PLAN.md — DRY refactor (resolve_container_id) + stack CRUD (create, delete, start, stop)
 - [ ] 02-02-PLAN.md — Stack updates (update-env, edit) + container management (stop-ct, start-ct, inspect, exec, top)
 - [ ] 02-03-PLAN.md — Resource commands (volumes, volume-rm, networks, images, pull, prune, endpoints)
 
