@@ -1,0 +1,87 @@
+# homelab-cli configuration
+# Copy to ~/.config/homelab-cli/config and fill in your values.
+# Lines starting with # are ignored.
+
+# ── Network ──────────────────────────────────────────────────────
+# Base IPs/hostnames for your VMs. Used by all CLIs.
+PROXMOX_HOST="https://192.168.1.100:8006"
+PLEX_VM_IP="192.168.1.101"
+SERVICES_VM_IP="192.168.1.102"
+
+# ── Proxmox ──────────────────────────────────────────────────────
+PVE_TOKEN_ID="root@pam!my-token"
+# How to get the token secret (one of: bw, env, file)
+PVE_TOKEN_SOURCE="bw"
+# If bw: Vaultwarden entry name
+PVE_TOKEN_BW_ENTRY="Proxmox API Token"
+# If env: environment variable name (default: PVE_API_TOKEN)
+# If file: path to file containing the token
+
+# ── Portainer ────────────────────────────────────────────────────
+# Instance definitions: NAME=HOST
+PORTAINER_PLEX="http://${PLEX_VM_IP}:9000"
+PORTAINER_SERVICES="https://${SERVICES_VM_IP}:9443"
+PORTAINER_TOKEN_SOURCE="bw"
+PORTAINER_PLEX_BW_ENTRY="Portainer API - Plex VM"
+PORTAINER_SERVICES_BW_ENTRY="Portainer API - Services VM"
+
+# ── *ARR Suite ───────────────────────────────────────────────────
+SONARR_URL="http://${PLEX_VM_IP}:8989"
+SONARR_API_KEY_SOURCE="config"  # bw, env, or config (reads from app's config.xml via SSH)
+SONARR_API_KEY_SSH_HOST=""      # SSH alias for config source (e.g., plex-vm)
+SONARR_API_KEY_CONFIG_PATH="/path/to/sonarr/config.xml"
+
+RADARR_URL="http://${PLEX_VM_IP}:7878"
+RADARR_API_KEY_SOURCE="config"
+RADARR_API_KEY_SSH_HOST=""
+RADARR_API_KEY_CONFIG_PATH="/path/to/radarr/config.xml"
+
+LIDARR_URL="http://${PLEX_VM_IP}:8686"
+LIDARR_API_KEY_SOURCE="config"
+LIDARR_API_KEY_SSH_HOST=""
+LIDARR_API_KEY_CONFIG_PATH="/path/to/lidarr/config.xml"
+
+PROWLARR_URL="http://${PLEX_VM_IP}:9696"
+PROWLARR_API_KEY_SOURCE="config"
+PROWLARR_API_KEY_SSH_HOST=""
+PROWLARR_API_KEY_CONFIG_PATH="/path/to/prowlarr/config.xml"
+
+BAZARR_URL="http://${PLEX_VM_IP}:6767"
+BAZARR_API_KEY_SOURCE="config"
+BAZARR_API_KEY_SSH_HOST=""
+BAZARR_API_KEY_CONFIG_PATH="/path/to/bazarr/config.xml"
+
+# ── Download Clients ─────────────────────────────────────────────
+QBIT_URL="http://${PLEX_VM_IP}:8082"
+QBIT_USER="admin"
+QBIT_PASS_SOURCE="bw"
+QBIT_PASS_BW_ENTRY="qBittorrent"
+
+SAB_URL="http://${PLEX_VM_IP}:8090"
+SAB_API_KEY_SOURCE="bw"
+SAB_API_KEY_BW_ENTRY="SABnzbd API Key"
+
+# ── Media Servers ────────────────────────────────────────────────
+PLEX_URL="http://${PLEX_VM_IP}:32400"
+PLEX_TOKEN_SOURCE="bw"
+PLEX_TOKEN_BW_ENTRY="Plex Token"
+
+JELLYFIN_URL="http://${PLEX_VM_IP}:8096"
+JELLYFIN_API_KEY_SOURCE="bw"
+JELLYFIN_API_KEY_BW_ENTRY="Jellyfin API Key"
+
+TAUTULLI_URL="http://${PLEX_VM_IP}:8181"
+TAUTULLI_API_KEY_SOURCE="bw"
+TAUTULLI_API_KEY_BW_ENTRY="Tautulli API Key"
+
+# ── Other Services ───────────────────────────────────────────────
+OVERSEERR_URL="http://${PLEX_VM_IP}:5055"
+OVERSEERR_API_KEY_SOURCE="bw"
+OVERSEERR_API_KEY_BW_ENTRY="Overseerr API Key"
+
+GLUETUN_URL="http://${PLEX_VM_IP}:8000"
+
+KOEL_URL="http://${PLEX_VM_IP}:8000"
+KOEL_SSH_HOST=""  # SSH alias for docker exec commands
+
+FIRECRAWL_URL="http://${SERVICES_VM_IP}:3002"

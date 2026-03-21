@@ -1,0 +1,465 @@
+#!/usr/bin/env bash
+# adguard - CLI for AdGuard Home
+# Uses REST API with basic auth, credentials from Vaultwarden
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Config (loaded from ~/.config/homelab-cli/config) ────────
+AG_HOST="${ADGUARD_URL:-http://localhost}"
+AG_VAULT_ENTRY="${ADGUARD_BW_ENTRY:-AdGuard Home}"
+
+# ── Auth ─────────────────────────────────────────────────────
+_ag_creds=""
+
+get_creds() {
+    if [[ -n "$_ag_creds" ]]; then echo "$_ag_creds"; return; fi
+    local user pass
+    user=$(bw get username "$AG_VAULT_ENTRY" 2>/dev/null) || {
+        die "Can't get AdGuard creds. Is vault unlocked? (bw unlock)"
+    }
+    pass=$(bw get password "$AG_VAULT_ENTRY" 2>/dev/null)
+    _ag_creds="${user}:${pass}"
+    echo "$_ag_creds"
+}
+
+ag_api() {
+    local method="$1" path="$2"
+    shift 2
+    local creds
+    creds=$(get_creds)
+    curl -s -u "$creds" -X "$method" "${AG_HOST}/control${path}" \
+        -H "Content-Type: application/json" "$@"
+}
+
+# ── Commands ─────────────────────────────────────────────────
+
+cmd_status() {
+    header "ADGUARD HOME STATUS"
+    ag_api GET /status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+prot = '\033[32mEnabled\033[0m' if d.get('protection_enabled') else '\033[31mDisabled\033[0m'
+print(f'  Version:    {d.get(\"version\", \"?\")}')
+print(f'  Protection: {prot}')
+print(f'  DNS Port:   {d.get(\"dns_port\", \"?\")}')
+print(f'  Running:    {\"Yes\" if d.get(\"running\") else \"No\"}')
+"
+    echo ""
+    ag_api GET /stats | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+total = d.get('num_dns_queries', 0)
+blocked = d.get('num_blocked_filtering', 0)
+pct = (blocked / total * 100) if total else 0
+avg = d.get('avg_processing_time', 0) * 1000
+print(f'  Queries:    {total:,}')
+print(f'  Blocked:    {blocked:,} ({pct:.1f}%)')
+print(f'  Avg Time:   {avg:.1f}ms')
+"
+}
+
+cmd_stats() {
+    ag_api GET /stats | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+total = d.get('num_dns_queries', 0)
+blocked = d.get('num_blocked_filtering', 0)
+sb = d.get('num_replaced_safebrowsing', 0)
+ss = d.get('num_replaced_safesearch', 0)
+par = d.get('num_replaced_parental', 0)
+pct = (blocked / total * 100) if total else 0
+avg = d.get('avg_processing_time', 0) * 1000
+
+print('  STATISTICS')
+print('  ─────────────────────────────────────────────────────')
+print(f'  Total Queries:     {total:,}')
+print(f'  Blocked:           {blocked:,} ({pct:.1f}%)')
+print(f'  Safe Browsing:     {sb:,}')
+print(f'  Safe Search:       {ss:,}')
+print(f'  Parental:          {par:,}')
+print(f'  Avg Process Time:  {avg:.1f}ms')
+print()
+
+top_q = d.get('top_queried_domains', [])
+if top_q:
+    print('  TOP QUERIED DOMAINS')
+    print('  ─────────────────────────────────────────────────────')
+    for entry in top_q[:10]:
+        for domain, count in entry.items():
+            print(f'    {count:>8,}  {domain}')
+    print()
+
+top_b = d.get('top_blocked_domains', [])
+if top_b:
+    print('  TOP BLOCKED DOMAINS')
+    print('  ─────────────────────────────────────────────────────')
+    for entry in top_b[:10]:
+        for domain, count in entry.items():
+            print(f'    {count:>8,}  {domain}')
+    print()
+
+top_c = d.get('top_clients', [])
+if top_c:
+    print('  TOP CLIENTS')
+    print('  ─────────────────────────────────────────────────────')
+    for entry in top_c[:10]:
+        for client, count in entry.items():
+            print(f'    {count:>8,}  {client}')
+"
+}
+
+cmd_filters() {
+    ag_api GET /filtering/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+enabled = '\033[32mEnabled\033[0m' if d.get('enabled') else '\033[31mDisabled\033[0m'
+interval = d.get('interval', 0)
+print(f'  FILTERS  {enabled}  (update interval: {interval}h)')
+print('  ─────────────────────────────────────────────────────')
+print()
+filters = d.get('filters', [])
+total_rules = 0
+for f in filters:
+    icon = '\033[32m+\033[0m' if f['enabled'] else '\033[2m-\033[0m'
+    rules = f.get('rules_count', 0)
+    total_rules += rules if f['enabled'] else 0
+    print(f'  {icon} {f[\"name\"]:<45} {rules:>8,} rules')
+print()
+print(f'  Total active rules: {total_rules:,}')
+
+wl = d.get('whitelist_filters', [])
+if wl:
+    print()
+    print('  ALLOWLISTS')
+    print('  ─────────────────────────────────────────────────────')
+    for f in wl:
+        icon = '\033[32m+\033[0m' if f['enabled'] else '\033[2m-\033[0m'
+        rules = f.get('rules_count', 0)
+        print(f'  {icon} {f[\"name\"]:<45} {rules:>8,} rules')
+
+user_rules = d.get('user_rules', [])
+user_rules = [r for r in user_rules if r.strip()]
+if user_rules:
+    print()
+    print(f'  CUSTOM RULES ({len(user_rules)})')
+    print('  ─────────────────────────────────────────────────────')
+    for r in user_rules[:20]:
+        print(f'    {r}')
+    if len(user_rules) > 20:
+        print(f'    ... and {len(user_rules) - 20} more')
+"
+}
+
+cmd_enable_filter() {
+    local name="$1"
+    local status_json result
+    status_json=$(ag_api GET /filtering/status)
+    result=$(echo "$status_json" | FILTER_NAME="$name" python3 -c "
+import sys, json, os
+d = json.load(sys.stdin)
+name = os.environ['FILTER_NAME'].lower()
+for f in (d.get('filters') or []) + (d.get('whitelist_filters') or []):
+    fname = f.get('name', '') or ''
+    furl = f.get('url', '') or ''
+    if fname and name in fname.lower():
+        print(furl + '|' + fname)
+        break
+    elif name in furl.lower():
+        print(furl + '|' + (fname or furl.split('/')[-1]))
+        break
+")
+
+    if [[ -z "$result" ]]; then
+        die "No filter matching '$name'"
+    fi
+
+    local url="${result%%|*}"
+    local fname="${result#*|}"
+    ag_api POST /filtering/set_url -d "{\"url\":\"$url\",\"data\":{\"url\":\"$url\",\"enabled\":true},\"whitelist\":false}"
+    ok "  Enabled: $fname"
+}
+
+cmd_disable_filter() {
+    local name="$1"
+    local status_json result
+    status_json=$(ag_api GET /filtering/status)
+    result=$(echo "$status_json" | FILTER_NAME="$name" python3 -c "
+import sys, json, os
+d = json.load(sys.stdin)
+name = os.environ['FILTER_NAME'].lower()
+for f in (d.get('filters') or []) + (d.get('whitelist_filters') or []):
+    fname = f.get('name', '') or ''
+    furl = f.get('url', '') or ''
+    if fname and name in fname.lower():
+        print(furl + '|' + fname)
+        break
+    elif name in furl.lower():
+        print(furl + '|' + (fname or furl.split('/')[-1]))
+        break
+")
+
+    if [[ -z "$result" ]]; then
+        die "No filter matching '$name'"
+    fi
+
+    local url="${result%%|*}"
+    local fname="${result#*|}"
+    ag_api POST /filtering/set_url -d "{\"url\":\"$url\",\"data\":{\"url\":\"$url\",\"enabled\":false},\"whitelist\":false}"
+    warn "  Disabled: $fname"
+}
+
+cmd_query_log() {
+    local search="${1:-}" limit="${2:-20}"
+    local params="limit=$limit"
+    if [[ -n "$search" ]]; then
+        params="${params}&search=$search"
+    fi
+    ag_api GET "/querylog?${params}" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+entries = d.get('data', [])
+if not entries:
+    print('  No log entries found.')
+    sys.exit()
+print(f'  QUERY LOG ({len(entries)} entries)')
+print('  ─────────────────────────────────────────────────────')
+print(f'  {\"Time\":<22} {\"Client\":<16} {\"Domain\":<40} {\"Status\"}')
+print(f'  {\"─\"*21} {\"─\"*15} {\"─\"*39} {\"─\"*15}')
+for e in entries:
+    t = e.get('time', '')[:19].replace('T', ' ')
+    client = e.get('client', '?')
+    q = e.get('question', {})
+    domain = q.get('name', '?')
+    if len(domain) > 39:
+        domain = domain[:36] + '...'
+    reason = e.get('reason', '?')
+    if reason == 'FilteredBlackList':
+        status = '\033[31mBlocked\033[0m'
+    elif reason == 'NotFilteredNotFound':
+        status = '\033[32mAllowed\033[0m'
+    elif reason == 'NotFilteredWhiteList':
+        status = 'Allowed (WL)'
+    elif 'Rewrite' in reason:
+        status = '\033[33mRewrite\033[0m'
+    else:
+        status = reason
+    print(f'  {t:<22} {client:<16} {domain:<40} {status}')
+"
+}
+
+cmd_blocked() {
+    local search="${1:-}" limit="${2:-50}"
+    local params="limit=$limit&response_status=filtered"
+    if [[ -n "$search" ]]; then
+        params="${params}&search=$search"
+    fi
+    ag_api GET "/querylog?${params}" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+entries = d.get('data', [])
+if not entries:
+    print('  No blocked entries found.')
+    sys.exit()
+print(f'  BLOCKED QUERIES ({len(entries)} entries)')
+print('  ─────────────────────────────────────────────────────')
+print(f'  {\"Time\":<22} {\"Client\":<16} {\"Domain\":<45} {\"Rule\"}')
+print(f'  {\"─\"*21} {\"─\"*15} {\"─\"*44} {\"─\"*20}')
+for e in entries:
+    t = e.get('time', '')[:19].replace('T', ' ')
+    client = e.get('client', '?')
+    q = e.get('question', {})
+    domain = q.get('name', '?')
+    if len(domain) > 44:
+        domain = domain[:41] + '...'
+    rules = e.get('rules', [])
+    rule = rules[0].get('text', '') if rules else ''
+    if len(rule) > 20:
+        rule = rule[:17] + '...'
+    print(f'  {t:<22} {client:<16} {domain:<45} {rule}')
+"
+}
+
+cmd_allow() {
+    local domain="$1"
+    local current_rules
+    current_rules=$(ag_api GET /filtering/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for r in d.get('user_rules', []):
+    print(r)
+")
+    local new_rules
+    new_rules=$(printf '%s\n@@||%s^' "$current_rules" "$domain")
+
+    ag_api POST /filtering/set_rules -d "{\"rules\":$(echo "$new_rules" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split('\n')))")}"
+    ok "  Added allowlist rule: @@||${domain}^"
+}
+
+cmd_block() {
+    local domain="$1"
+    local current_rules
+    current_rules=$(ag_api GET /filtering/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for r in d.get('user_rules', []):
+    print(r)
+")
+    local new_rules
+    new_rules=$(printf '%s\n||%s^' "$current_rules" "$domain")
+
+    ag_api POST /filtering/set_rules -d "{\"rules\":$(echo "$new_rules" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split('\n')))")}"
+    ok "  Added block rule: ||${domain}^"
+}
+
+cmd_protect_on() {
+    ag_api POST /dns_config -d '{"protection_enabled":true}'
+    ok "  Protection enabled."
+}
+
+cmd_protect_off() {
+    ag_api POST /dns_config -d '{"protection_enabled":false}'
+    warn "  Protection disabled."
+}
+
+cmd_refresh() {
+    info "  Refreshing filters..."
+    local result
+    result=$(ag_api POST /filtering/refresh -d '{"whitelist":false}')
+    local updated
+    updated=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('updated',0))" 2>/dev/null || echo "?")
+    ok "  Done. $updated filters updated."
+}
+
+cmd_top_blocked() {
+    ag_api GET /stats | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+top = d.get('top_blocked_domains', [])
+if not top:
+    print('  No blocked domains in stats.')
+    sys.exit()
+print('  TOP BLOCKED DOMAINS')
+print('  ─────────────────────────────────────────────────────')
+for entry in top[:25]:
+    for domain, count in entry.items():
+        print(f'    {count:>8,}  {domain}')
+"
+}
+
+cmd_top_clients() {
+    ag_api GET /stats | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+top = d.get('top_clients', [])
+if not top:
+    print('  No client data.')
+    sys.exit()
+print('  TOP CLIENTS')
+print('  ─────────────────────────────────────────────────────')
+for entry in top[:15]:
+    for client, count in entry.items():
+        print(f'    {count:>8,}  {client}')
+"
+}
+
+cmd_rules() {
+    ag_api GET /filtering/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rules = [r for r in d.get('user_rules', []) if r.strip()]
+if not rules:
+    print('  No custom rules.')
+    sys.exit()
+print(f'  CUSTOM RULES ({len(rules)})')
+print('  ─────────────────────────────────────────────────────')
+for r in rules:
+    if r.startswith('@@'):
+        print(f'  \033[32m+ {r}\033[0m  (allow)')
+    else:
+        print(f'  \033[31m- {r}\033[0m  (block)')
+"
+}
+
+cmd_help() {
+    show_version "adguard"
+    cat <<'HELP'
+
+CLI for AdGuard Home DNS ad-blocking.
+
+USAGE:
+  adguard <command> [args...]
+
+DASHBOARD:
+  status                          Quick status + stats overview
+  stats                           Detailed statistics with top domains/clients
+
+FILTERS:
+  filters                         List all filter lists and their status
+  enable-filter <name>            Enable a filter (substring match on name or URL)
+  disable-filter <name>           Disable a filter (substring match on name or URL)
+  refresh                         Force refresh all filter lists
+
+QUERY LOG:
+  log [search] [limit]            View query log (optionally filter by domain/IP)
+  blocked [search] [limit]        View only blocked queries
+
+RULES:
+  rules                           List custom user rules
+  allow <domain>                  Add domain to allowlist (custom rules)
+  block <domain>                  Add domain to blocklist (custom rules)
+
+STATS:
+  top-blocked                     Top blocked domains
+  top-clients                     Top DNS clients
+
+PROTECTION:
+  protect-on                      Enable DNS protection
+  protect-off                     Disable DNS protection
+
+EXAMPLES:
+  adguard status
+  adguard filters
+  adguard disable-filter "Steven Black"
+  adguard log example.com
+  adguard blocked
+  adguard allow api.example.com
+  adguard top-blocked
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────
+
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                 cmd_status ;;
+        stats)                  cmd_stats ;;
+        filters|lists)          cmd_filters ;;
+        enable-filter|enable)   cmd_enable_filter "$1" ;;
+        disable-filter|disable) cmd_disable_filter "$1" ;;
+        refresh|update)         cmd_refresh ;;
+        log|querylog|query)     cmd_query_log "${1:-}" "${2:-20}" ;;
+        blocked)                cmd_blocked "${1:-}" "${2:-50}" ;;
+        rules)                  cmd_rules ;;
+        allow|whitelist)        cmd_allow "$1" ;;
+        block|blacklist)        cmd_block "$1" ;;
+        top-blocked)            cmd_top_blocked ;;
+        top-clients)            cmd_top_clients ;;
+        protect-on)             cmd_protect_on ;;
+        protect-off)            cmd_protect_off ;;
+        help|--help|-h)         cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

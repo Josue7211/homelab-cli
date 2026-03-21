@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# koel - CLI for managing a Koel music server
+# Quick deploy, artisan, logs, and status.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Config (loaded from ~/.config/homelab-cli/config) ────────
+KOEL_URL="${KOEL_URL:-http://localhost:8000}"
+KOEL_SSH="${KOEL_SSH_HOST:?Set KOEL_SSH_HOST in config}"
+KOEL_CONTAINER="${KOEL_CONTAINER:-koel}"
+KOEL_DB_CONTAINER="${KOEL_DB_CONTAINER:-koel-db}"
+KOEL_DB_USER="${KOEL_DB_USER:-koel}"
+KOEL_DB_NAME="${KOEL_DB_NAME:-koel}"
+
+# ── Commands ─────────────────────────────────────────────────
+
+cmd_status() {
+    header "KOEL STATUS"
+
+    # Web health
+    local code
+    code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 3 "$KOEL_URL" 2>/dev/null || echo "000")
+    if [[ "$code" =~ ^(200|301|302)$ ]]; then
+        ok "    Web:       $KOEL_URL (HTTP $code) OK"
+    else
+        err "    Web:       $KOEL_URL (HTTP $code) DOWN"
+    fi
+
+    # Container status via portainer
+    portainer containers plex 2>/dev/null | grep -E "koel" || warn "    (can't check containers -- vault locked?)"
+
+    echo ""
+    info "  Quick commands:"
+    echo "    koel logs [n]     -- last n lines of koel logs"
+    echo "    koel artisan ...  -- run artisan command in container"
+    echo "    koel deploy       -- redeploy the music stack"
+    echo "    koel shell        -- SSH into the Plex VM"
+    echo "    koel db           -- connect to MariaDB CLI"
+}
+
+cmd_logs() {
+    local tail="${1:-100}"
+    portainer logs plex "$KOEL_CONTAINER" "$tail"
+}
+
+cmd_db_logs() {
+    local tail="${1:-50}"
+    portainer logs plex "$KOEL_DB_CONTAINER" "$tail"
+}
+
+cmd_artisan() {
+    if [[ $# -lt 1 ]]; then
+        echo "Usage: koel artisan <command> [args...]"
+        echo "Examples:"
+        echo "  koel artisan migrate --force"
+        echo "  koel artisan tinker"
+        echo "  koel artisan koel:scan"
+        echo "  koel artisan route:list"
+        exit 1
+    fi
+    ssh "$KOEL_SSH" "docker exec -t $KOEL_CONTAINER php artisan $*"
+}
+
+cmd_shell() {
+    info "Connecting to Plex VM via $KOEL_SSH..."
+    ssh "$KOEL_SSH"
+}
+
+cmd_bash() {
+    info "Opening shell in $KOEL_CONTAINER container..."
+    ssh -t "$KOEL_SSH" "docker exec -it $KOEL_CONTAINER bash"
+}
+
+cmd_db() {
+    info "Connecting to Koel MariaDB..."
+    ssh -t "$KOEL_SSH" "docker exec -it $KOEL_DB_CONTAINER mysql -u ${KOEL_DB_USER} -p ${KOEL_DB_NAME}"
+}
+
+cmd_deploy() {
+    info "Redeploying music stack on Plex VM..."
+    portainer redeploy plex music
+}
+
+cmd_restart() {
+    info "Restarting $KOEL_CONTAINER container..."
+    portainer restart plex "$KOEL_CONTAINER"
+}
+
+cmd_scan() {
+    info "Scanning music library..."
+    ssh "$KOEL_SSH" "docker exec -t $KOEL_CONTAINER php artisan koel:scan"
+}
+
+cmd_env() {
+    portainer env plex music
+}
+
+cmd_compose() {
+    portainer compose plex music
+}
+
+cmd_open() {
+    info "Opening $KOEL_URL in browser..."
+    xdg-open "$KOEL_URL" 2>/dev/null || echo "Open: $KOEL_URL"
+}
+
+cmd_help() {
+    show_version "koel"
+    cat <<'HELP'
+CLI for the Koel music server (Plex VM)
+
+USAGE:
+  koel <command> [args...]
+
+STATUS:
+  status                Show Koel health and container status
+  open                  Open Koel in browser
+
+DEPLOYMENT:
+  deploy                Redeploy the music stack (pull images + prune)
+  restart               Restart the koel container
+  compose               Show the docker-compose.yml
+  env                   Show stack environment variables
+
+DEVELOPMENT:
+  artisan <cmd>         Run a Laravel artisan command
+  scan                  Scan music library (koel:scan)
+  bash                  Open a bash shell in the container
+  shell                 SSH into the Plex VM
+
+LOGS:
+  logs [n]              Koel container logs (default: last 100 lines)
+  db-logs [n]           MariaDB container logs
+
+DATABASE:
+  db                    Open MariaDB CLI
+
+EXAMPLES:
+  koel status
+  koel logs 200
+  koel artisan migrate --force
+  koel artisan koel:scan --verbose
+  koel deploy
+  koel scan
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)         cmd_status ;;
+        logs)           cmd_logs "${1:-100}" ;;
+        db-logs)        cmd_db_logs "${1:-50}" ;;
+        artisan)        cmd_artisan "$@" ;;
+        shell|ssh)      cmd_shell ;;
+        bash)           cmd_bash ;;
+        db|mysql)       cmd_db ;;
+        deploy)         cmd_deploy ;;
+        restart)        cmd_restart ;;
+        scan)           cmd_scan ;;
+        env)            cmd_env ;;
+        compose)        cmd_compose ;;
+        open)           cmd_open ;;
+        help|--help|-h) cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

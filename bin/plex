@@ -1,0 +1,585 @@
+#!/usr/bin/env bash
+# plex - CLI for Plex Media Server and Tautulli
+# Manage libraries, streams, history, and more from the command line.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+PLEX_URL="${PLEX_URL:-http://localhost:32400}"
+PLEX_TOKEN_SOURCE="${PLEX_TOKEN_SOURCE:-bw}"
+PLEX_TOKEN_BW_ENTRY="${PLEX_TOKEN_BW_ENTRY:-Plex Token}"
+
+TAUTULLI_URL="${TAUTULLI_URL:-http://localhost:8181}"
+TAUTULLI_API_KEY_SOURCE="${TAUTULLI_API_KEY_SOURCE:-bw}"
+TAUTULLI_API_KEY_BW_ENTRY="${TAUTULLI_API_KEY_BW_ENTRY:-Tautulli API Key}"
+
+# ── Secret cache ───────────────────────────────────────────────
+_PLEX_TOKEN=""
+_TAUTULLI_KEY=""
+
+get_plex_token() {
+    if [[ -n "$_PLEX_TOKEN" ]]; then
+        echo "$_PLEX_TOKEN"
+        return
+    fi
+    case "$PLEX_TOKEN_SOURCE" in
+        bw)   _PLEX_TOKEN=$(get_secret bw "$PLEX_TOKEN_BW_ENTRY") ;;
+        env)  _PLEX_TOKEN=$(get_secret env "" "PLEX_TOKEN") ;;
+        file) _PLEX_TOKEN=$(get_secret file "" "" "$PLEX_TOKEN_FILE") ;;
+        value) _PLEX_TOKEN=$(get_secret value "$PLEX_TOKEN_BW_ENTRY") ;;
+        *)    die "Unknown PLEX_TOKEN_SOURCE: $PLEX_TOKEN_SOURCE" ;;
+    esac
+    echo "$_PLEX_TOKEN"
+}
+
+get_tautulli_key() {
+    if [[ -n "$_TAUTULLI_KEY" ]]; then
+        echo "$_TAUTULLI_KEY"
+        return
+    fi
+    case "$TAUTULLI_API_KEY_SOURCE" in
+        bw)   _TAUTULLI_KEY=$(get_secret bw "$TAUTULLI_API_KEY_BW_ENTRY") ;;
+        env)  _TAUTULLI_KEY=$(get_secret env "" "TAUTULLI_API_KEY") ;;
+        file) _TAUTULLI_KEY=$(get_secret file "" "" "$TAUTULLI_API_KEY_FILE") ;;
+        value) _TAUTULLI_KEY=$(get_secret value "$TAUTULLI_API_KEY_BW_ENTRY") ;;
+        *)    die "Unknown TAUTULLI_API_KEY_SOURCE: $TAUTULLI_API_KEY_SOURCE" ;;
+    esac
+    echo "$_TAUTULLI_KEY"
+}
+
+# ── API helpers ─────────────────────────────────────────────────
+plex_api() {
+    local path="$1"
+    local token
+    token=$(get_plex_token)
+    curl -sf "${PLEX_URL}${path}" \
+        -H "X-Plex-Token: ${token}" \
+        -H "Accept: application/json" \
+        2>/dev/null
+}
+
+tautulli_api() {
+    local cmd="$1"
+    shift
+    local key
+    key=$(get_tautulli_key)
+    local extra=""
+    for arg in "$@"; do
+        extra="${extra}&${arg}"
+    done
+    curl -sf "${TAUTULLI_URL}/api/v2?apikey=${key}&cmd=${cmd}${extra}" 2>/dev/null
+}
+
+tautulli_available() {
+    local key
+    key=$(get_tautulli_key 2>/dev/null) || return 1
+    curl -sf --connect-timeout 3 "${TAUTULLI_URL}/api/v2?apikey=${key}&cmd=get_server_info" >/dev/null 2>&1
+}
+
+# ── Commands ────────────────────────────────────────────────────
+
+cmd_status() {
+    header "PLEX SERVER STATUS"
+
+    local identity
+    identity=$(plex_api "/identity") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$identity" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('MediaContainer', {})
+print(f\"  Server:    {d.get('friendlyName', '?')}\")
+print(f\"  Version:   {d.get('version', '?')}\")
+print(f\"  Platform:  {d.get('platform', '?')} ({d.get('platformVersion', '?')})\")
+print(f\"  Machine:   {d.get('machineIdentifier', '?')[:12]}...\")
+"
+
+    echo ""
+
+    # Active streams count
+    local sessions
+    sessions=$(plex_api "/status/sessions" 2>/dev/null)
+    if [[ -n "$sessions" ]]; then
+        local count
+        count=$(echo "$sessions" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('MediaContainer', {})
+print(d.get('size', 0))
+" 2>/dev/null || echo "0")
+        if [[ "$count" == "0" ]]; then
+            echo -e "  Streams:   ${DIM}none${RESET}"
+        else
+            echo -e "  Streams:   ${GREEN}${count} active${RESET}"
+        fi
+    fi
+
+    # Tautulli status
+    if tautulli_available 2>/dev/null; then
+        echo -e "  Tautulli:  ${GREEN}connected${RESET}"
+    else
+        echo -e "  Tautulli:  ${DIM}unavailable${RESET}"
+    fi
+}
+
+cmd_streams() {
+    header "ACTIVE STREAMS"
+
+    # Try Tautulli first for richer data
+    if tautulli_available 2>/dev/null; then
+        local response
+        response=$(tautulli_api "get_activity") || die "Failed to fetch activity from Tautulli"
+
+        echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('response', {}).get('data', {})
+streams = data.get('sessions', [])
+count = data.get('stream_count', 0)
+
+if not streams:
+    print('  No active streams.')
+    sys.exit()
+
+print(f'  {count} active stream(s)')
+print()
+print(f'  {\"USER\":<16} {\"TITLE\":<40} {\"STATE\":<10} {\"QUALITY\":<12} {\"PROGRESS\"}')
+print(f'  {\"─\" * 16} {\"─\" * 40} {\"─\" * 10} {\"─\" * 12} {\"─\" * 8}')
+
+for s in streams:
+    user = s.get('friendly_name', s.get('user', '?'))[:15]
+    full_title = s.get('full_title', s.get('title', '?'))[:39]
+    state = s.get('state', '?')
+    quality = s.get('quality_profile', s.get('video_resolution', '?'))[:11]
+    progress = s.get('progress_percent', '?')
+    transcode = s.get('transcode_decision', '')
+
+    state_color = '\033[32m' if state == 'playing' else '\033[33m' if state == 'paused' else ''
+    reset = '\033[0m'
+    suffix = f' ({transcode})' if transcode and transcode != 'direct play' else ''
+
+    print(f'  {user:<16} {full_title:<40} {state_color}{state:<10}{reset} {quality}{suffix:<12} {progress}%')
+"
+        return
+    fi
+
+    # Fallback to Plex sessions API
+    local sessions
+    sessions=$(plex_api "/status/sessions") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$sessions" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+streams = data.get('Metadata', [])
+count = data.get('size', 0)
+
+if not streams:
+    print('  No active streams.')
+    sys.exit()
+
+print(f'  {count} active stream(s)')
+print()
+print(f'  {\"USER\":<16} {\"TITLE\":<40} {\"STATE\":<10} {\"PLAYER\"}')
+print(f'  {\"─\" * 16} {\"─\" * 40} {\"─\" * 10} {\"─\" * 20}')
+
+for s in streams:
+    user = s.get('User', {}).get('title', '?')[:15]
+    title = s.get('grandparentTitle', '')
+    if title:
+        ep_title = s.get('title', '')
+        parent_idx = s.get('parentIndex', '')
+        idx = s.get('index', '')
+        title = f'{title} - S{parent_idx:0>2}E{idx:0>2}'
+    else:
+        title = s.get('title', '?')
+    title = title[:39]
+    state = s.get('Player', {}).get('state', '?')
+    player = s.get('Player', {}).get('product', '?')[:19]
+
+    state_color = '\033[32m' if state == 'playing' else '\033[33m' if state == 'paused' else ''
+    reset = '\033[0m'
+
+    print(f'  {user:<16} {title:<40} {state_color}{state:<10}{reset} {player}')
+"
+}
+
+cmd_libraries() {
+    header "PLEX LIBRARIES"
+
+    local response
+    response=$(plex_api "/library/sections") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+libs = data.get('Directory', [])
+
+if not libs:
+    print('  No libraries found.')
+    sys.exit()
+
+print(f'  {\"ID\":<6} {\"TITLE\":<30} {\"TYPE\":<12} {\"ITEMS\":<10} {\"AGENT\"}')
+print(f'  {\"─\" * 6} {\"─\" * 30} {\"─\" * 12} {\"─\" * 10} {\"─\" * 30}')
+
+for lib in sorted(libs, key=lambda x: int(x.get('key', 0))):
+    lib_id = lib.get('key', '?')
+    title = lib.get('title', '?')[:29]
+    lib_type = lib.get('type', '?')[:11]
+    agent = lib.get('agent', '?')[:29]
+
+    # Try to get count from the Location list
+    # The actual item count needs a separate API call, but we show what we have
+    print(f'  {lib_id:<6} {title:<30} {lib_type:<12} {\"\":<10} {agent}')
+"
+
+    # Enrich with Tautulli library stats if available
+    if tautulli_available 2>/dev/null; then
+        echo ""
+        echo -e "  ${BOLD}Library Stats${RESET} ${DIM}(via Tautulli)${RESET}"
+        echo ""
+
+        local tau_libs
+        tau_libs=$(tautulli_api "get_libraries") || return
+
+        echo "$tau_libs" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('response', {}).get('data', [])
+
+if not data:
+    print('  No library data from Tautulli.')
+    sys.exit()
+
+print(f'  {\"LIBRARY\":<30} {\"TYPE\":<12} {\"COUNT\":<10} {\"CHILD\":<10} {\"LAST PLAYED\"}')
+print(f'  {\"─\" * 30} {\"─\" * 12} {\"─\" * 10} {\"─\" * 10} {\"─\" * 20}')
+
+for lib in data:
+    name = lib.get('section_name', '?')[:29]
+    stype = lib.get('section_type', '?')[:11]
+    count = lib.get('count', '?')
+    child = lib.get('child_count', '')
+    last = lib.get('last_played', '')
+    if last:
+        from datetime import datetime
+        try:
+            last = datetime.fromtimestamp(int(last)).strftime('%Y-%m-%d %H:%M')
+        except (ValueError, OSError):
+            pass
+    print(f'  {name:<30} {stype:<12} {count:<10} {child:<10} {last}')
+"
+    fi
+}
+
+cmd_recent() {
+    local count="${1:-15}"
+    header "RECENTLY ADDED (${count})"
+
+    local response
+    response=$(plex_api "/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=${count}") \
+        || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$response" | python3 -c "
+import sys, json
+from datetime import datetime
+
+data = json.load(sys.stdin).get('MediaContainer', {})
+items = data.get('Metadata', [])
+
+if not items:
+    print('  Nothing recently added.')
+    sys.exit()
+
+print(f'  {\"ADDED\":<12} {\"TYPE\":<10} {\"TITLE\":<50} {\"YEAR\"}')
+print(f'  {\"─\" * 12} {\"─\" * 10} {\"─\" * 50} {\"─\" * 6}')
+
+for item in items:
+    added = item.get('addedAt', 0)
+    try:
+        added_str = datetime.fromtimestamp(int(added)).strftime('%Y-%m-%d')
+    except (ValueError, OSError):
+        added_str = '?'
+
+    item_type = item.get('type', '?')[:9]
+    year = item.get('year', '')
+
+    # Build title based on type
+    if item_type == 'episode':
+        show = item.get('grandparentTitle', '?')
+        s = item.get('parentIndex', 0)
+        e = item.get('index', 0)
+        ep_title = item.get('title', '')
+        title = f'{show} - S{s:02d}E{e:02d} {ep_title}'
+    elif item_type == 'season':
+        show = item.get('parentTitle', '?')
+        s = item.get('index', 0)
+        title = f'{show} - Season {s}'
+    elif item_type == 'track':
+        artist = item.get('grandparentTitle', '?')
+        album = item.get('parentTitle', '')
+        title = f'{artist} - {album} - {item.get(\"title\", \"?\")}'
+    elif item_type == 'album':
+        artist = item.get('parentTitle', '?')
+        title = f'{artist} - {item.get(\"title\", \"?\")}'
+    else:
+        title = item.get('title', '?')
+
+    title = title[:49]
+    print(f'  {added_str:<12} {item_type:<10} {title:<50} {year}')
+"
+}
+
+cmd_history() {
+    local count="${1:-20}"
+    header "PLAYBACK HISTORY (${count})"
+
+    if ! tautulli_available 2>/dev/null; then
+        die "Tautulli is not available. History requires Tautulli."
+    fi
+
+    local response
+    response=$(tautulli_api "get_history" "length=${count}") \
+        || die "Failed to fetch history from Tautulli"
+
+    echo "$response" | python3 -c "
+import sys, json
+from datetime import datetime
+
+data = json.load(sys.stdin).get('response', {}).get('data', {})
+records = data.get('data', [])
+total = data.get('recordsFiltered', 0)
+
+if not records:
+    print('  No playback history.')
+    sys.exit()
+
+print(f'  Showing ${count} of {total} total plays')
+print()
+print(f'  {\"DATE\":<18} {\"USER\":<16} {\"TITLE\":<42} {\"DURATION\"}')
+print(f'  {\"─\" * 18} {\"─\" * 16} {\"─\" * 42} {\"─\" * 10}')
+
+for r in records:
+    date = r.get('date', 0)
+    try:
+        date_str = datetime.fromtimestamp(int(date)).strftime('%Y-%m-%d %H:%M')
+    except (ValueError, OSError):
+        date_str = '?'
+
+    user = r.get('friendly_name', r.get('user', '?'))[:15]
+    full_title = r.get('full_title', r.get('title', '?'))[:41]
+    duration_secs = r.get('duration', 0)
+    try:
+        dur_mins = int(duration_secs) // 60
+        duration = f'{dur_mins // 60}h{dur_mins % 60:02d}m' if dur_mins >= 60 else f'{dur_mins}m'
+    except (ValueError, TypeError):
+        duration = '?'
+
+    watched_pct = r.get('percent_complete', '')
+    suffix = f' ({watched_pct}%)' if watched_pct else ''
+
+    print(f'  {date_str:<18} {user:<16} {full_title:<42} {duration}{suffix}')
+"
+}
+
+cmd_users() {
+    header "PLEX USERS"
+
+    if ! tautulli_available 2>/dev/null; then
+        die "Tautulli is not available. User list requires Tautulli."
+    fi
+
+    local response
+    response=$(tautulli_api "get_users") || die "Failed to fetch users from Tautulli"
+
+    echo "$response" | python3 -c "
+import sys, json
+from datetime import datetime
+
+data = json.load(sys.stdin).get('response', {}).get('data', [])
+
+if not data:
+    print('  No users found.')
+    sys.exit()
+
+print(f'  {\"USER\":<24} {\"EMAIL\":<30} {\"LAST SEEN\":<18} {\"PLAYS\"}')
+print(f'  {\"─\" * 24} {\"─\" * 30} {\"─\" * 18} {\"─\" * 8}')
+
+for u in sorted(data, key=lambda x: x.get('friendly_name', '').lower()):
+    name = u.get('friendly_name', u.get('username', '?'))[:23]
+    email = u.get('email', '')[:29]
+    last = u.get('last_seen', '')
+    plays = u.get('plays', '')
+
+    if last:
+        try:
+            last = datetime.fromtimestamp(int(last)).strftime('%Y-%m-%d %H:%M')
+        except (ValueError, OSError):
+            last = '?'
+    else:
+        last = 'never'
+
+    # Skip the local server user (user_id 0 or empty)
+    user_id = u.get('user_id', '')
+    if str(user_id) == '0':
+        continue
+
+    print(f'  {name:<24} {email:<30} {last:<18} {plays}')
+"
+}
+
+cmd_scan() {
+    local library_id="${1:-}"
+
+    if [[ -z "$library_id" ]]; then
+        header "SCANNING ALL LIBRARIES"
+        local response
+        response=$(plex_api "/library/sections") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+        local ids
+        ids=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+for lib in data.get('Directory', []):
+    print(lib.get('key', ''))
+" 2>/dev/null)
+
+        while IFS= read -r lid; do
+            [[ -z "$lid" ]] && continue
+            local lib_name
+            lib_name=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+for lib in data.get('Directory', []):
+    if lib.get('key') == '$lid':
+        print(lib.get('title', '?'))
+        break
+" 2>/dev/null)
+            plex_api "/library/sections/${lid}/refresh" >/dev/null 2>&1 && \
+                ok "  Scan triggered: ${lib_name} (${lid})" || \
+                warn "  Failed to scan: ${lib_name} (${lid})"
+        done <<< "$ids"
+    else
+        header "SCANNING LIBRARY ${library_id}"
+        plex_api "/library/sections/${library_id}/refresh" >/dev/null 2>&1 && \
+            ok "  Scan triggered for library ${library_id}" || \
+            die "Failed to trigger scan for library ${library_id}"
+    fi
+}
+
+cmd_search() {
+    local query="${1:-}"
+    [[ -z "$query" ]] && die "Usage: plex search <query>"
+
+    header "SEARCH: ${query}"
+
+    local encoded_query
+    encoded_query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${query//\'/\\\'}'))")
+
+    local response
+    response=$(plex_api "/search?query=${encoded_query}") \
+        || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$response" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin).get('MediaContainer', {})
+items = data.get('Metadata', [])
+hubs = data.get('Hub', [])
+
+# Newer Plex versions use Hub-based search results
+results = items
+if not results and hubs:
+    for hub in hubs:
+        results.extend(hub.get('Metadata', []))
+
+if not results:
+    print('  No results found.')
+    sys.exit()
+
+print(f'  {\"#\":<4} {\"TYPE\":<12} {\"TITLE\":<45} {\"YEAR\":<6} {\"LIBRARY\"}')
+print(f'  {\"─\" * 4} {\"─\" * 12} {\"─\" * 45} {\"─\" * 6} {\"─\" * 15}')
+
+for i, item in enumerate(results[:25], 1):
+    item_type = item.get('type', '?')[:11]
+    year = str(item.get('year', ''))[:5]
+    library = item.get('librarySectionTitle', '')[:14]
+
+    if item_type == 'episode':
+        show = item.get('grandparentTitle', '?')
+        s = item.get('parentIndex', 0)
+        e = item.get('index', 0)
+        title = f'{show} - S{s:02d}E{e:02d} {item.get(\"title\", \"\")}'
+    elif item_type == 'track':
+        artist = item.get('grandparentTitle', '?')
+        title = f'{artist} - {item.get(\"title\", \"?\")}'
+    elif item_type == 'album':
+        artist = item.get('parentTitle', '?')
+        title = f'{artist} - {item.get(\"title\", \"?\")}'
+    else:
+        title = item.get('title', '?')
+
+    title = title[:44]
+    print(f'  {i:<4} {item_type:<12} {title:<45} {year:<6} {library}')
+"
+}
+
+# ── Help ────────────────────────────────────────────────────────
+cmd_help() {
+    show_version "plex"
+    cat <<'HELP'
+
+CLI for Plex Media Server and Tautulli.
+
+USAGE:
+  plex <command> [args...]
+
+SERVER:
+  status                        Server info and active stream count
+  streams                       Current active streams (detailed)
+  scan [library_id]             Trigger library scan (all or specific)
+
+LIBRARY:
+  libraries                     List all libraries with stats
+  recent [count]                Recently added items (default: 15)
+  search <query>                Search across all libraries
+
+TAUTULLI (requires Tautulli):
+  history [count]               Playback history (default: 20)
+  users                         List all Plex users
+
+EXAMPLES:
+  plex status                   Quick server overview
+  plex streams                  Who's watching what
+  plex libraries                All libraries and stats
+  plex recent 10                Last 10 items added
+  plex history 50               Last 50 plays
+  plex users                    All connected users
+  plex scan                     Scan all libraries
+  plex scan 1                   Scan library with ID 1
+  plex search "interstellar"    Find content across libraries
+HELP
+}
+
+# ── Main ────────────────────────────────────────────────────────
+main() {
+    require_cmd curl
+    require_cmd python3
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                 cmd_status ;;
+        streams|sessions)       cmd_streams ;;
+        libraries|libs|lib)     cmd_libraries ;;
+        recent|new)             cmd_recent "${1:-15}" ;;
+        history|hist)           cmd_history "${1:-20}" ;;
+        users)                  cmd_users ;;
+        scan|refresh)           cmd_scan "${1:-}" ;;
+        search|find)            cmd_search "$@" ;;
+        help|--help|-h)         cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

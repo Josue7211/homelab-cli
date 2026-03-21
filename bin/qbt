@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+# qbt - CLI for qBittorrent Web UI
+# Manage torrents, speeds, and downloads via the qBittorrent Web API.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+QBIT_URL="${QBIT_URL:-http://localhost:8082}"
+QBIT_USER="${QBIT_USER:-admin}"
+QBIT_PASS_SOURCE="${QBIT_PASS_SOURCE:-bw}"
+QBIT_PASS_BW_ENTRY="${QBIT_PASS_BW_ENTRY:-qBittorrent}"
+
+# ── Session management ─────────────────────────────────────────
+_cookie_file=""
+
+cleanup() {
+    [[ -n "$_cookie_file" && -f "$_cookie_file" ]] && rm -f "$_cookie_file"
+}
+trap cleanup EXIT
+
+qbt_login() {
+    [[ -n "$_cookie_file" && -f "$_cookie_file" ]] && return 0
+
+    _cookie_file=$(mktemp)
+
+    local password
+    password=$(get_secret "$QBIT_PASS_SOURCE" "$QBIT_PASS_BW_ENTRY") || {
+        die "Can't get qBittorrent password. Is vault unlocked? (bw unlock)"
+    }
+
+    local result
+    result=$(curl -sf -c "$_cookie_file" \
+        -X POST "${QBIT_URL}/api/v2/auth/login" \
+        -d "username=${QBIT_USER}&password=${password}" 2>/dev/null) || {
+        die "Can't connect to qBittorrent at ${QBIT_URL}"
+    }
+
+    if [[ "$result" != "Ok." ]]; then
+        die "qBittorrent login failed (bad credentials?)"
+    fi
+}
+
+qbt_get() {
+    local path="$1"
+    qbt_login
+    curl -sf -b "$_cookie_file" "${QBIT_URL}${path}" 2>/dev/null
+}
+
+qbt_post() {
+    local path="$1" data="${2:-}"
+    qbt_login
+    if [[ -n "$data" ]]; then
+        curl -sf -b "$_cookie_file" -X POST "${QBIT_URL}${path}" -d "$data" 2>/dev/null
+    else
+        curl -sf -b "$_cookie_file" -X POST "${QBIT_URL}${path}" 2>/dev/null
+    fi
+}
+
+# ── Commands ───────────────────────────────────────────────────
+
+cmd_status() {
+    header "QBITTORRENT STATUS"
+
+    local version
+    version=$(qbt_get "/api/v2/app/version") || die "Can't get version"
+    echo -e "  Version:  ${BOLD}${version}${RESET}"
+    echo -e "  URL:      ${DIM}${QBIT_URL}${RESET}"
+    echo ""
+
+    local transfer
+    transfer=$(qbt_get "/api/v2/transfer/info") || die "Can't get transfer info"
+    echo "$transfer" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+def fmt(b):
+    for u in ['B/s','KB/s','MB/s','GB/s']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB/s'
+dl = d.get('dl_info_speed', 0)
+up = d.get('up_info_speed', 0)
+dl_total = d.get('dl_info_data', 0)
+up_total = d.get('up_info_data', 0)
+
+def fmt_size(b):
+    for u in ['B','KB','MB','GB','TB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} PB'
+
+print(f'  Download: {fmt(dl)}  (total: {fmt_size(dl_total)})')
+print(f'  Upload:   {fmt(up)}  (total: {fmt_size(up_total)})')
+print(f'  Status:   {d.get(\"connection_status\", \"?\")}')
+"
+    echo ""
+
+    # Torrent counts
+    local torrents
+    torrents=$(qbt_get "/api/v2/torrents/info") || die "Can't get torrents"
+    echo "$torrents" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+total = len(data)
+downloading = sum(1 for t in data if t.get('state', '').startswith('download') or t.get('state') == 'stalledDL')
+seeding = sum(1 for t in data if t.get('state', '').startswith('upload') or t.get('state') == 'stalledUP')
+paused = sum(1 for t in data if 'paused' in t.get('state', '').lower())
+print(f'  Torrents: {total} total, {downloading} downloading, {seeding} seeding, {paused} paused')
+"
+}
+
+cmd_list() {
+    local filter="${1:-all}"
+
+    local endpoint="/api/v2/torrents/info?sort=added_on&reverse=true"
+    case "$filter" in
+        all)         ;;
+        downloading) endpoint="${endpoint}&filter=downloading" ;;
+        seeding)     endpoint="${endpoint}&filter=seeding" ;;
+        completed)   endpoint="${endpoint}&filter=completed" ;;
+        paused)      endpoint="${endpoint}&filter=paused" ;;
+        *)           die "Unknown filter: $filter (expected: all, downloading, seeding, completed, paused)" ;;
+    esac
+
+    header "TORRENTS (${filter})"
+
+    local response
+    response=$(qbt_get "$endpoint") || die "Can't get torrent list"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  (no torrents)')
+    sys.exit()
+
+def fmt_size(b):
+    for u in ['B','KB','MB','GB','TB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} PB'
+
+def fmt_speed(b):
+    for u in ['B/s','KB/s','MB/s','GB/s']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB/s'
+
+def state_label(s):
+    mapping = {
+        'downloading': 'Downloading',
+        'stalledDL': 'Stalled DL',
+        'uploading': 'Seeding',
+        'stalledUP': 'Seeding',
+        'pausedDL': 'Paused',
+        'pausedUP': 'Paused',
+        'queuedDL': 'Queued',
+        'queuedUP': 'Queued',
+        'checkingDL': 'Checking',
+        'checkingUP': 'Checking',
+        'missingFiles': 'Missing',
+        'error': 'Error',
+        'moving': 'Moving',
+        'forcedDL': 'Forced DL',
+        'forcedUP': 'Forced UP',
+        'allocating': 'Allocating',
+        'metaDL': 'Metadata',
+    }
+    return mapping.get(s, s)
+
+print(f'  {\"Name\":<50} {\"Size\":>9}  {\"Done\":>5}  {\"DL Speed\":>10}  {\"Status\":<12} {\"Ratio\":>5}')
+print(f'  {\"─\"*50} {\"─\"*9}  {\"─\"*5}  {\"─\"*10}  {\"─\"*12} {\"─\"*5}')
+
+for t in data:
+    name = t.get('name', '?')[:50]
+    size = fmt_size(t.get('total_size', 0))
+    progress = f'{t.get(\"progress\", 0)*100:.0f}%'
+    dl_speed = fmt_speed(t.get('dlspeed', 0))
+    state = state_label(t.get('state', '?'))
+    ratio = f'{t.get(\"ratio\", 0):.2f}'
+    hash_short = t.get('hash', '?')[:8]
+    print(f'  {name:<50} {size:>9}  {progress:>5}  {dl_speed:>10}  {state:<12} {ratio:>5}')
+    print(f'    {\"\\033[2m\"}{t.get(\"hash\", \"?\")}{\"\\033[0m\"}')
+"
+}
+
+cmd_add() {
+    local url="${1:-}"
+    [[ -z "$url" ]] && die "Usage: qbt add <magnet_or_url>"
+
+    local result
+    result=$(qbt_post "/api/v2/torrents/add" "urls=${url}") || die "Failed to add torrent"
+
+    if [[ "$result" == "Ok." ]]; then
+        ok "  Torrent added successfully."
+    else
+        err "  Failed to add torrent: $result"
+    fi
+}
+
+cmd_pause() {
+    local hashes="${1:-}"
+    [[ -z "$hashes" ]] && die "Usage: qbt pause <hash|all>"
+
+    qbt_post "/api/v2/torrents/pause" "hashes=${hashes}" || die "Failed to pause torrent(s)"
+    ok "  Paused: ${hashes}"
+}
+
+cmd_resume() {
+    local hashes="${1:-}"
+    [[ -z "$hashes" ]] && die "Usage: qbt resume <hash|all>"
+
+    qbt_post "/api/v2/torrents/resume" "hashes=${hashes}" || die "Failed to resume torrent(s)"
+    ok "  Resumed: ${hashes}"
+}
+
+cmd_delete() {
+    local hash="${1:-}"
+    [[ -z "$hash" ]] && die "Usage: qbt delete <hash> [--files]"
+    local delete_files="false"
+    if [[ "${2:-}" == "--files" ]]; then
+        delete_files="true"
+    fi
+
+    qbt_post "/api/v2/torrents/delete" "hashes=${hash}&deleteFiles=${delete_files}" || die "Failed to delete torrent"
+
+    if [[ "$delete_files" == "true" ]]; then
+        ok "  Deleted torrent + files: ${hash}"
+    else
+        ok "  Deleted torrent (kept files): ${hash}"
+    fi
+}
+
+cmd_speed() {
+    local transfer
+    transfer=$(qbt_get "/api/v2/transfer/info") || die "Can't get transfer info"
+    echo "$transfer" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+def fmt(b):
+    for u in ['B/s','KB/s','MB/s','GB/s']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB/s'
+dl = d.get('dl_info_speed', 0)
+up = d.get('up_info_speed', 0)
+print(f'  Download: {fmt(dl)}')
+print(f'  Upload:   {fmt(up)}')
+"
+}
+
+cmd_help() {
+    show_version "qbt"
+    cat <<'HELP'
+
+CLI for qBittorrent Web UI.
+
+USAGE:
+  qbt <command> [args...]
+
+STATUS:
+  status                      Version, speeds, and torrent counts
+  speed                       Current upload/download speeds
+
+TORRENTS:
+  list [filter]               List torrents (all|downloading|seeding|completed|paused)
+  add <magnet_or_url>         Add torrent by magnet link or URL
+  pause <hash|all>            Pause torrent(s)
+  resume <hash|all>           Resume torrent(s)
+  delete <hash> [--files]     Delete torrent (optionally delete files)
+
+EXAMPLES:
+  qbt status
+  qbt list                    List all torrents
+  qbt list downloading        Show only active downloads
+  qbt add "magnet:?xt=..."    Add a magnet link
+  qbt pause all               Pause everything
+  qbt resume all              Resume everything
+  qbt delete abc123 --files   Delete torrent and its files
+  qbt speed                   Check current speeds
+HELP
+}
+
+# ── Main ───────────────────────────────────────────────────────
+
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)             cmd_status ;;
+        list|ls|l)          cmd_list "${1:-all}" ;;
+        add)                cmd_add "$@" ;;
+        pause)              cmd_pause "$@" ;;
+        resume)             cmd_resume "$@" ;;
+        delete|rm|del)      cmd_delete "$@" ;;
+        speed)              cmd_speed ;;
+        help|--help|-h)     cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

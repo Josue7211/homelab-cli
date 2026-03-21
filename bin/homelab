@@ -1,0 +1,367 @@
+#!/usr/bin/env bash
+# homelab - Unified CLI for homelab infrastructure
+# Proxmox VE + Portainer (Services/Plex) + service health checks
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+PVE_HOST="${PROXMOX_HOST:-https://localhost:8006}"
+PVE_TOKEN="${PVE_TOKEN_ID:-root@pam!token}"
+PVE_BW_ENTRY="${PVE_TOKEN_BW_ENTRY:-Proxmox API Token}"
+PVE_SECRET_SOURCE="${PVE_TOKEN_SOURCE:-bw}"
+PVE_NODE="${PVE_NODE:-pve}"
+
+# ── Token management ────────────────────────────────────────────
+_pve_token=""
+
+get_pve_token() {
+    if [[ -n "$_pve_token" ]]; then echo "$_pve_token"; return; fi
+    local token
+    token=$(get_secret "$PVE_SECRET_SOURCE" "$PVE_BW_ENTRY") || {
+        die "Can't get Proxmox token. Is vault unlocked? (bw unlock)"
+    }
+    _pve_token="$token"
+    echo "$token"
+}
+
+pve_api() {
+    local path="$1"
+    local token
+    token=$(get_pve_token)
+    curl -sk "${PVE_HOST}/api2/json${path}" \
+        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=${token}"
+}
+
+# ── Proxmox commands ─────────────────────────────────────────────
+
+cmd_status() {
+    header "HOMELAB STATUS"
+    echo ""
+
+    # Proxmox node
+    echo "  PROXMOX (${PVE_HOST})"
+    pve_api "/cluster/resources" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)['data']
+node = [r for r in data if r['type'] == 'node'][0] if data else {}
+cpu = node.get('cpu', 0)
+mem = node.get('mem', 0) / 1024**3
+maxmem = node.get('maxmem', 0) / 1024**3
+uptime = node.get('uptime', 0)
+days = uptime // 86400
+hours = (uptime % 86400) // 3600
+print(f'    CPU: {cpu:.0%}  RAM: {mem:.1f}/{maxmem:.1f}GB  Uptime: {days}d {hours}h')
+print()
+vms = [r for r in data if r['type'] in ('qemu', 'lxc')]
+for v in sorted(vms, key=lambda x: x.get('vmid', 0)):
+    t = 'VM' if v['type'] == 'qemu' else 'CT'
+    vmid = v.get('vmid', '?')
+    name = v.get('name', '?')
+    status = v.get('status', '?')
+    icon = '+' if status == 'running' else '-' if status == 'stopped' else '~'
+    cpu = v.get('cpu', 0)
+    mem = v.get('mem', 0) / 1024**3
+    maxmem = v.get('maxmem', 0) / 1024**3
+    print(f'    [{icon}] {t} {vmid:<5} {name:<16} cpu={cpu:.0%}  mem={mem:.1f}/{maxmem:.1f}GB')
+"
+    echo ""
+
+    # Portainer instances
+    echo "  PORTAINER"
+    local pt_services="${PORTAINER_SERVICES:-https://localhost:9443}"
+    local pt_plex="${PORTAINER_PLEX:-http://localhost:9000}"
+
+    for inst in services plex; do
+        local url label
+        if [[ "$inst" == "services" ]]; then
+            url="$pt_services"
+            label="Services ($url)"
+        else
+            url="$pt_plex"
+            label="Plex ($url)"
+        fi
+        local ver
+        ver=$(curl -sk "${url}/api/status" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version','?'))" 2>/dev/null || echo "unreachable")
+        if [[ "$ver" == "unreachable" ]]; then
+            echo "    [-] $label — unreachable"
+        else
+            echo "    [+] $label — v$ver"
+        fi
+    done
+    echo ""
+
+    # Service health checks
+    echo "  SERVICES"
+    local -a checks=(
+        "Koel|${KOEL_URL:-http://localhost:8000}"
+        "Firecrawl|${FIRECRAWL_URL:-http://localhost:3002}"
+        "Plex|${PLEX_URL:-http://localhost:32400}/identity"
+        "Overseerr|${OVERSEERR_URL:-http://localhost:5055}"
+        "Lidarr|${LIDARR_URL:-http://localhost:8686}"
+        "Radarr|${RADARR_URL:-http://localhost:7878}"
+        "Sonarr|${SONARR_URL:-http://localhost:8989}"
+        "Prowlarr|${PROWLARR_URL:-http://localhost:9696}"
+    )
+    for check in "${checks[@]}"; do
+        local name="${check%%|*}"
+        local url="${check##*|}"
+        local code
+        code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 3 "$url" 2>/dev/null || echo "000")
+        if [[ "$code" =~ ^(200|301|302|307|401|403)$ ]]; then
+            printf "    [+] %-14s %s\n" "$name" "$url"
+        else
+            printf "    [-] %-14s %s (HTTP %s)\n" "$name" "$url" "$code"
+        fi
+    done
+}
+
+cmd_vms() {
+    pve_api "/cluster/resources" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)['data']
+vms = [r for r in data if r['type'] in ('qemu', 'lxc')]
+print(f'  {\"Type\":<5} {\"VMID\":<6} {\"Name\":<18} {\"Status\":<10} {\"CPU\":<7} {\"Memory\":<15} {\"Uptime\"}')
+print(f'  {\"─\"*4} {\"─\"*5} {\"─\"*17} {\"─\"*9} {\"─\"*6} {\"─\"*14} {\"─\"*10}')
+for v in sorted(vms, key=lambda x: x.get('vmid', 0)):
+    t = v['type']
+    vmid = v.get('vmid', '?')
+    name = v.get('name', '?')
+    status = v.get('status', '?')
+    cpu = f'{v.get(\"cpu\", 0):.0%}'
+    mem = f'{v.get(\"mem\", 0)/1024**3:.1f}/{v.get(\"maxmem\", 0)/1024**3:.1f}GB'
+    uptime_s = v.get('uptime', 0)
+    uptime = f'{uptime_s//86400}d {(uptime_s%86400)//3600}h' if uptime_s else '-'
+    print(f'  {t:<5} {vmid:<6} {name:<18} {status:<10} {cpu:<7} {mem:<15} {uptime}')
+"
+}
+
+cmd_vm() {
+    local vmid="$1"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+
+    if [[ -z "$vm_type" || "$vm_type" == "NOT_FOUND" ]]; then
+        die "VMID $vmid not found"
+    fi
+
+    pve_api "/nodes/${PVE_NODE}/$vm_type/$vmid/status/current" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)['data']
+print(f'  Name:     {d.get(\"name\", \"?\")}')
+print(f'  VMID:     $vmid')
+print(f'  Type:     $vm_type')
+print(f'  Status:   {d.get(\"status\", \"?\")}')
+print(f'  CPU:      {d.get(\"cpu\", 0):.1%} ({d.get(\"cpus\", \"?\")} cores)')
+mem = d.get('mem', 0) / 1024**3
+maxmem = d.get('maxmem', 0) / 1024**3
+print(f'  Memory:   {mem:.1f}/{maxmem:.1f} GB')
+disk = d.get('disk', 0) / 1024**3
+maxdisk = d.get('maxdisk', 0) / 1024**3
+print(f'  Disk:     {disk:.1f}/{maxdisk:.1f} GB')
+uptime = d.get('uptime', 0)
+print(f'  Uptime:   {uptime//86400}d {(uptime%86400)//3600}h {(uptime%3600)//60}m')
+pid = d.get('pid', '-')
+print(f'  PID:      {pid}')
+"
+}
+
+cmd_start() {
+    local vmid="$1"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    info "Starting VMID $vmid..."
+    curl -sk -X POST "${PVE_HOST}/api2/json/nodes/${PVE_NODE}/$vm_type/$vmid/status/start" \
+        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=$(get_pve_token)" > /dev/null
+    ok "Done."
+}
+
+cmd_stop() {
+    local vmid="$1"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    info "Shutting down VMID $vmid..."
+    curl -sk -X POST "${PVE_HOST}/api2/json/nodes/${PVE_NODE}/$vm_type/$vmid/status/shutdown" \
+        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=$(get_pve_token)" > /dev/null
+    ok "Done. (graceful shutdown sent)"
+}
+
+cmd_reboot() {
+    local vmid="$1"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    info "Rebooting VMID $vmid..."
+    curl -sk -X POST "${PVE_HOST}/api2/json/nodes/${PVE_NODE}/$vm_type/$vmid/status/reboot" \
+        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=$(get_pve_token)" > /dev/null
+    ok "Done."
+}
+
+cmd_snapshots() {
+    local vmid="$1"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    pve_api "/nodes/${PVE_NODE}/$vm_type/$vmid/snapshot" | python3 -c "
+import sys, json, datetime
+snaps = json.load(sys.stdin)['data']
+snaps = [s for s in snaps if s.get('name') != 'current']
+if not snaps:
+    print('  No snapshots.')
+    sys.exit()
+print(f'  {\"Name\":<25} {\"Description\":<30} {\"Date\"}')
+print(f'  {\"─\"*24} {\"─\"*29} {\"─\"*20}')
+for s in sorted(snaps, key=lambda x: x.get('snaptime', 0)):
+    name = s.get('name', '?')
+    desc = s.get('description', '')[:30]
+    ts = s.get('snaptime', 0)
+    date = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M') if ts else '-'
+    print(f'  {name:<25} {desc:<30} {date}')
+"
+}
+
+cmd_storage() {
+    pve_api "/nodes/${PVE_NODE}/storage" | python3 -c "
+import sys, json
+stores = json.load(sys.stdin)['data']
+print(f'  {\"Name\":<18} {\"Type\":<10} {\"Used\":<12} {\"Total\":<12} {\"Usage\":<8} {\"Status\"}')
+print(f'  {\"─\"*17} {\"─\"*9} {\"─\"*11} {\"─\"*11} {\"─\"*7} {\"─\"*8}')
+for s in sorted(stores, key=lambda x: x.get('storage', '')):
+    name = s.get('storage', '?')
+    stype = s.get('type', '?')
+    used = s.get('used', 0) / 1024**3
+    total = s.get('total', 0) / 1024**3
+    pct = f'{s.get(\"used_fraction\", 0):.0%}' if s.get('used_fraction') else '-'
+    active = '[+]' if s.get('active') else '[-]'
+    print(f'  {name:<18} {stype:<10} {used:.1f}GB {\"\":>4} {total:.1f}GB {\"\":>4} {pct:<8} {active}')
+"
+}
+
+# ── Portainer shortcuts ──────────────────────────────────────────
+
+cmd_stacks() {
+    local instance="${1:-}"
+    if [[ -z "$instance" ]]; then
+        echo "  SERVICES VM:"
+        portainer stacks services
+        echo ""
+        echo "  PLEX VM:"
+        portainer stacks plex
+    else
+        portainer stacks "$instance"
+    fi
+}
+
+cmd_containers() {
+    local instance="${1:-}"
+    if [[ -z "$instance" ]]; then
+        echo "  SERVICES VM:"
+        portainer containers services
+        echo ""
+        echo "  PLEX VM:"
+        portainer containers plex
+    else
+        portainer containers "$instance"
+    fi
+}
+
+cmd_logs() {
+    portainer logs "$@"
+}
+
+cmd_restart_container() {
+    portainer restart "$@"
+}
+
+cmd_redeploy() {
+    portainer redeploy "$@"
+}
+
+# ── Helpers ──────────────────────────────────────────────────────
+
+_resolve_vm_type() {
+    local vmid="$1"
+    local result
+    result=$(pve_api "/cluster/resources" | python3 -c "
+import sys, json
+vmid = int($vmid)
+for r in json.load(sys.stdin)['data']:
+    if r.get('vmid') == vmid:
+        print(r['type'])
+        sys.exit()
+print('NOT_FOUND', end='')
+" 2>/dev/null)
+
+    if [[ "$result" == "NOT_FOUND" || -z "$result" ]]; then
+        die "VMID $vmid not found"
+    fi
+    echo "$result"
+}
+
+cmd_help() {
+    show_version "homelab"
+    cat <<'HELP'
+
+Unified homelab CLI (Proxmox + Portainer + Services)
+
+USAGE:
+  homelab <command> [args...]
+
+DASHBOARD:
+  status                          Full homelab dashboard (VMs, services, health)
+
+PROXMOX (VMs):
+  vms                             List all VMs and containers
+  vm <vmid>                       Detailed VM info
+  start <vmid>                    Start a VM/container
+  stop <vmid>                     Graceful shutdown
+  reboot <vmid>                   Reboot a VM/container
+  snapshots <vmid>                List VM snapshots
+  storage                         Show storage pools
+
+PORTAINER (Docker):
+  stacks [instance]               List stacks (services|plex, or both)
+  containers [instance]           List containers
+  logs <instance> <name> [tail]   Container logs
+  restart-ct <instance> <name>    Restart a container
+  redeploy <instance> <name>      Redeploy stack (pull + prune)
+
+EXAMPLES:
+  homelab status
+  homelab vms
+  homelab vm 100
+  homelab start 300
+  homelab stacks plex
+  homelab logs plex koel 50
+  homelab redeploy plex music
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────────
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status|dashboard)   cmd_status ;;
+        vms|ls)             cmd_vms ;;
+        vm|info)            cmd_vm "$1" ;;
+        start)              cmd_start "$1" ;;
+        stop|shutdown)      cmd_stop "$1" ;;
+        reboot)             cmd_reboot "$1" ;;
+        snapshots|snaps)    cmd_snapshots "$1" ;;
+        storage)            cmd_storage ;;
+        stacks)             cmd_stacks "${1:-}" ;;
+        containers|ps)      cmd_containers "${1:-}" ;;
+        logs)               cmd_logs "$@" ;;
+        restart-ct)         cmd_restart_container "$@" ;;
+        redeploy)           cmd_redeploy "$@" ;;
+        help|--help|-h)     cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

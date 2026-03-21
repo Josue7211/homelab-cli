@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# gluetun - CLI for Gluetun VPN container
+# Monitor and control VPN status, public IP, and port forwarding.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+GLUETUN_URL="${GLUETUN_URL:-http://localhost:8000}"
+
+# ── API helpers ────────────────────────────────────────────────
+
+gluetun_get() {
+    local path="$1"
+    curl -sf "${GLUETUN_URL}${path}" 2>/dev/null
+}
+
+gluetun_put() {
+    local path="$1" data="$2"
+    curl -sf -X PUT "${GLUETUN_URL}${path}" \
+        -H "Content-Type: application/json" \
+        -d "$data" 2>/dev/null
+}
+
+# ── Commands ───────────────────────────────────────────────────
+
+cmd_status() {
+    header "GLUETUN VPN STATUS"
+
+    echo -e "  URL:      ${DIM}${GLUETUN_URL}${RESET}"
+    echo ""
+
+    # VPN status
+    local vpn_status
+    vpn_status=$(gluetun_get "/v1/openvpn/status") || {
+        die "Can't connect to Gluetun at ${GLUETUN_URL}"
+    }
+    echo "$vpn_status" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+status = d.get('status', '?')
+color = '\033[32m' if status == 'running' else '\033[31m'
+print(f'  VPN:       {color}{status}\033[0m')
+"
+
+    # Public IP
+    local ip
+    ip=$(gluetun_get "/v1/publicip/ip") || true
+    if [[ -n "$ip" ]]; then
+        echo "$ip" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ip = d.get('public_ip', d.get('ip', '?'))
+region = d.get('region', '')
+country = d.get('country', '')
+loc = []
+if region: loc.append(region)
+if country: loc.append(country)
+loc_str = f' ({', '.join(loc)})' if loc else ''
+print(f'  Public IP: {ip}{loc_str}')
+" 2>/dev/null || echo "  Public IP: (unavailable)"
+    else
+        echo "  Public IP: (unavailable)"
+    fi
+
+    # Forwarded port
+    local port
+    port=$(gluetun_get "/v1/openvpn/portforwarded") || true
+    if [[ -n "$port" ]]; then
+        echo "$port" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+p = d.get('port', 0)
+if p and p > 0:
+    print(f'  Forwarded: port {p}')
+else:
+    print(f'  Forwarded: (none)')
+" 2>/dev/null || echo "  Forwarded: (unavailable)"
+    else
+        echo "  Forwarded: (unavailable)"
+    fi
+}
+
+cmd_ip() {
+    local ip
+    ip=$(gluetun_get "/v1/publicip/ip") || die "Can't get public IP"
+    echo "$ip" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ip = d.get('public_ip', d.get('ip', '?'))
+print(ip)
+"
+}
+
+cmd_port() {
+    local port
+    port=$(gluetun_get "/v1/openvpn/portforwarded") || die "Can't get forwarded port"
+    echo "$port" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+p = d.get('port', 0)
+if p and p > 0:
+    print(p)
+else:
+    print('No port forwarded')
+    sys.exit(1)
+"
+}
+
+cmd_stop() {
+    local result
+    result=$(gluetun_put "/v1/openvpn/status" '{"status": "stopped"}') || die "Failed to stop VPN"
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+status = d.get('outcome', d.get('status', '?'))
+print(f'  VPN: {status}')
+" 2>/dev/null
+    ok "  VPN stopped."
+}
+
+cmd_start() {
+    local result
+    result=$(gluetun_put "/v1/openvpn/status" '{"status": "running"}') || die "Failed to start VPN"
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+status = d.get('outcome', d.get('status', '?'))
+print(f'  VPN: {status}')
+" 2>/dev/null
+    ok "  VPN started."
+}
+
+cmd_restart() {
+    info "  Stopping VPN..."
+    gluetun_put "/v1/openvpn/status" '{"status": "stopped"}' >/dev/null 2>&1 || true
+    sleep 2
+    info "  Starting VPN..."
+    local result
+    result=$(gluetun_put "/v1/openvpn/status" '{"status": "running"}') || die "Failed to start VPN"
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+status = d.get('outcome', d.get('status', '?'))
+print(f'  VPN: {status}')
+" 2>/dev/null
+    ok "  VPN restarted."
+}
+
+cmd_help() {
+    show_version "gluetun"
+    cat <<'HELP'
+
+CLI for Gluetun VPN container.
+
+USAGE:
+  gluetun <command>
+
+STATUS:
+  status                      VPN status, public IP, and forwarded port
+  ip                          Show current public IP
+  port                        Show forwarded port
+
+CONTROL:
+  start                       Start the VPN
+  stop                        Stop the VPN
+  restart                     Restart the VPN
+
+EXAMPLES:
+  gluetun status              Full VPN status overview
+  gluetun ip                  Quick IP check
+  gluetun port                Check forwarded port
+  gluetun restart             Reconnect the VPN
+HELP
+}
+
+# ── Main ───────────────────────────────────────────────────────
+
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)             cmd_status ;;
+        ip)                 cmd_ip ;;
+        port)               cmd_port ;;
+        stop)               cmd_stop ;;
+        start)              cmd_start ;;
+        restart)            cmd_restart ;;
+        help|--help|-h)     cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

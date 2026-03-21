@@ -1,0 +1,637 @@
+#!/usr/bin/env bash
+# arr - Unified CLI for Sonarr, Radarr, Lidarr, Prowlarr, and Bazarr
+# All *ARR apps share nearly identical API patterns.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+SONARR_URL="${SONARR_URL:-http://localhost:8989}"
+RADARR_URL="${RADARR_URL:-http://localhost:7878}"
+LIDARR_URL="${LIDARR_URL:-http://localhost:8686}"
+PROWLARR_URL="${PROWLARR_URL:-http://localhost:9696}"
+BAZARR_URL="${BAZARR_URL:-http://localhost:6767}"
+
+# API key source defaults
+SONARR_API_KEY_SOURCE="${SONARR_API_KEY_SOURCE:-config}"
+RADARR_API_KEY_SOURCE="${RADARR_API_KEY_SOURCE:-config}"
+LIDARR_API_KEY_SOURCE="${LIDARR_API_KEY_SOURCE:-config}"
+PROWLARR_API_KEY_SOURCE="${PROWLARR_API_KEY_SOURCE:-config}"
+BAZARR_API_KEY_SOURCE="${BAZARR_API_KEY_SOURCE:-config}"
+
+# ── App registry ────────────────────────────────────────────────
+declare -A APP_URLS APP_API_VERSIONS APP_KEY_SOURCES APP_KEY_SSH APP_KEY_PATHS APP_KEY_BW
+APP_URLS=(
+    [sonarr]="$SONARR_URL"   [radarr]="$RADARR_URL"   [lidarr]="$LIDARR_URL"
+    [prowlarr]="$PROWLARR_URL" [bazarr]="$BAZARR_URL"
+)
+APP_API_VERSIONS=(
+    [sonarr]="v3" [radarr]="v3" [lidarr]="v1" [prowlarr]="v1" [bazarr]=""
+)
+APP_KEY_SOURCES=(
+    [sonarr]="$SONARR_API_KEY_SOURCE"   [radarr]="$RADARR_API_KEY_SOURCE"
+    [lidarr]="$LIDARR_API_KEY_SOURCE"   [prowlarr]="$PROWLARR_API_KEY_SOURCE"
+    [bazarr]="$BAZARR_API_KEY_SOURCE"
+)
+APP_KEY_SSH=(
+    [sonarr]="${SONARR_API_KEY_SSH_HOST:-}" [radarr]="${RADARR_API_KEY_SSH_HOST:-}"
+    [lidarr]="${LIDARR_API_KEY_SSH_HOST:-}" [prowlarr]="${PROWLARR_API_KEY_SSH_HOST:-}"
+    [bazarr]="${BAZARR_API_KEY_SSH_HOST:-}"
+)
+APP_KEY_PATHS=(
+    [sonarr]="${SONARR_API_KEY_CONFIG_PATH:-}" [radarr]="${RADARR_API_KEY_CONFIG_PATH:-}"
+    [lidarr]="${LIDARR_API_KEY_CONFIG_PATH:-}" [prowlarr]="${PROWLARR_API_KEY_CONFIG_PATH:-}"
+    [bazarr]="${BAZARR_API_KEY_CONFIG_PATH:-}"
+)
+APP_KEY_BW=(
+    [sonarr]="${SONARR_API_KEY_BW_ENTRY:-Sonarr API Key}" [radarr]="${RADARR_API_KEY_BW_ENTRY:-Radarr API Key}"
+    [lidarr]="${LIDARR_API_KEY_BW_ENTRY:-Lidarr API Key}" [prowlarr]="${PROWLARR_API_KEY_BW_ENTRY:-Prowlarr API Key}"
+    [bazarr]="${BAZARR_API_KEY_BW_ENTRY:-Bazarr API Key}"
+)
+
+# ── Key cache ───────────────────────────────────────────────────
+declare -A _key_cache
+
+get_api_key() {
+    local app="$1"
+    [[ -n "${_key_cache[$app]:-}" ]] && { echo "${_key_cache[$app]}"; return; }
+
+    local source="${APP_KEY_SOURCES[$app]}"
+    local key
+    case "$source" in
+        config)
+            key=$(get_secret config "" "" "${APP_KEY_PATHS[$app]}" "${APP_KEY_SSH[$app]}" "${APP_KEY_PATHS[$app]}")
+            ;;
+        bw)
+            key=$(get_secret bw "${APP_KEY_BW[$app]}")
+            ;;
+        env)
+            local var="${app^^}_API_KEY"
+            key=$(get_secret env "" "$var")
+            ;;
+        *)
+            key=$(get_secret "$source" "${APP_KEY_BW[$app]}")
+            ;;
+    esac
+    _key_cache[$app]="$key"
+    echo "$key"
+}
+
+# ── API helpers ─────────────────────────────────────────────────
+arr_api() {
+    local app="$1" method="$2" path="$3" data="${4:-}"
+    local base_url="${APP_URLS[$app]}"
+    local api_ver="${APP_API_VERSIONS[$app]}"
+    local key
+    key=$(get_api_key "$app")
+
+    local url
+    if [[ -n "$api_ver" ]]; then
+        url="${base_url}/api/${api_ver}${path}"
+    else
+        url="${base_url}/api${path}"  # bazarr
+    fi
+
+    case "$method" in
+        GET)    api_get "$url" "$key" ;;
+        POST)   api_post "$url" "$key" "$data" ;;
+        DELETE)
+            curl -sf -X DELETE "$url" -H "X-Api-Key: $key" 2>/dev/null
+            ;;
+    esac
+}
+
+# ── Resolve app from subcommand or default ──────────────────────
+ALL_APPS=(sonarr radarr lidarr prowlarr bazarr)
+MEDIA_APPS=(sonarr radarr lidarr)
+
+resolve_app() {
+    local input="$1"
+    case "$input" in
+        sonarr|s)   echo "sonarr" ;;
+        radarr|r)   echo "radarr" ;;
+        lidarr|l)   echo "lidarr" ;;
+        prowlarr|p) echo "prowlarr" ;;
+        bazarr|b)   echo "bazarr" ;;
+        *)          return 1 ;;
+    esac
+}
+
+# ── Commands ────────────────────────────────────────────────────
+
+cmd_status() {
+    header "ARR SUITE STATUS"
+    for app in "${ALL_APPS[@]}"; do
+        local url="${APP_URLS[$app]}"
+        local code
+        code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 3 "$url" 2>/dev/null || echo "000")
+        local icon
+        if [[ "$code" =~ ^(200|301|302|307|401|403)$ ]]; then
+            icon="${GREEN}UP${RESET}"
+        else
+            icon="${RED}DOWN${RESET}"
+        fi
+        printf "  %-12s %b  %s\n" "$app" "$icon" "$url"
+    done
+}
+
+cmd_queue() {
+    local app="${1:-}"
+    local apps_to_check=()
+
+    if [[ -n "$app" ]]; then
+        apps_to_check=("$(resolve_app "$app")")
+    else
+        apps_to_check=(sonarr radarr lidarr)
+    fi
+
+    for app in "${apps_to_check[@]}"; do
+        local response
+        response=$(arr_api "$app" GET "/queue?pageSize=50&includeUnknownSeriesItems=true" 2>/dev/null) || {
+            warn "  $app: could not connect"
+            continue
+        }
+
+        local count
+        count=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('totalRecords',0))" 2>/dev/null || echo "0")
+
+        if [[ "$count" == "0" ]]; then
+            echo -e "  ${BOLD}${app}${RESET}: ${DIM}queue empty${RESET}"
+            continue
+        fi
+
+        echo -e "  ${BOLD}${app}${RESET}: ${YELLOW}${count} items${RESET}"
+        echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for r in data.get('records', []):
+    title = r.get('title', '?')[:60]
+    status = r.get('status', '?')
+    tracked = r.get('trackedDownloadStatus', '')
+    state = r.get('trackedDownloadState', '')
+    icon = '!' if tracked == 'warning' else ' '
+    msgs = []
+    for sm in r.get('statusMessages', []):
+        msgs.extend(sm.get('messages', []))
+    msg = msgs[0][:70] if msgs else ''
+
+    # color based on status
+    if tracked == 'warning':
+        print(f'    \033[33m{icon} {title:<60} {status:<12} {state}\033[0m')
+        if msg:
+            print(f'      \033[2m{msg}\033[0m')
+    else:
+        print(f'    {icon} {title:<60} {status:<12} {state}')
+"
+    done
+}
+
+cmd_queue_clear() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr queue-clear <sonarr|radarr|lidarr> [--completed]"
+    app=$(resolve_app "$app")
+    local only_completed="${2:-}"
+
+    local response
+    response=$(arr_api "$app" GET "/queue?pageSize=100&includeUnknownSeriesItems=true") || die "Can't connect to $app"
+
+    local ids
+    if [[ "$only_completed" == "--completed" ]]; then
+        ids=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for r in data.get('records', []):
+    if r.get('status') == 'completed' and r.get('trackedDownloadStatus') == 'warning':
+        print(r['id'])
+")
+    else
+        ids=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for r in data.get('records', []):
+    print(r['id'])
+")
+    fi
+
+    if [[ -z "$ids" ]]; then
+        ok "  $app: nothing to clear"
+        return
+    fi
+
+    local count=0
+    while IFS= read -r id; do
+        arr_api "$app" DELETE "/queue/$id?removeFromClient=true&blocklist=false&skipRedownload=true" >/dev/null 2>&1
+        ((count++))
+    done <<< "$ids"
+    ok "  $app: cleared $count items"
+}
+
+cmd_activity() {
+    local app="${1:-}"
+    local apps_to_check=()
+    if [[ -n "$app" ]]; then
+        apps_to_check=("$(resolve_app "$app")")
+    else
+        apps_to_check=(sonarr radarr lidarr)
+    fi
+
+    for app in "${apps_to_check[@]}"; do
+        local response
+        response=$(arr_api "$app" GET "/history?pageSize=15&sortKey=date&sortDirection=descending" 2>/dev/null) || {
+            warn "  $app: could not connect"
+            continue
+        }
+        echo -e "  ${BOLD}${app}${RESET} — recent activity:"
+        echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for r in data.get('records', [])[:10]:
+    event = r.get('eventType', '?')
+    title = ''
+    if 'sourceTitle' in r:
+        title = r['sourceTitle'][:65]
+    elif 'series' in r:
+        title = r['series'].get('title', '?')
+    elif 'movie' in r:
+        title = r['movie'].get('title', '?')
+    elif 'artist' in r:
+        title = r['artist'].get('artistName', '?')
+    date = r.get('date', '?')[:10]
+    quality = r.get('quality', {}).get('quality', {}).get('name', '')
+
+    icon = {'grabbed': '+', 'downloadFolderImported': '>', 'downloadFailed': 'X', 'episodeFileDeleted': '-', 'movieFileDeleted': '-', 'trackFileDeleted': '-'}.get(event, '?')
+    print(f'    {icon} {date}  {title:<65} {quality}')
+" 2>/dev/null
+        echo ""
+    done
+}
+
+cmd_calendar() {
+    local app="${1:-}"
+    local days="${2:-7}"
+    local apps_to_check=()
+    if [[ -n "$app" ]]; then
+        apps_to_check=("$(resolve_app "$app")")
+    else
+        apps_to_check=(sonarr radarr)
+    fi
+
+    local start end
+    start=$(date -I)
+    end=$(date -I -d "+${days} days" 2>/dev/null || date -v+${days}d -I 2>/dev/null || echo "$start")
+
+    for app in "${apps_to_check[@]}"; do
+        local response
+        response=$(arr_api "$app" GET "/calendar?start=${start}&end=${end}" 2>/dev/null) || {
+            warn "  $app: could not connect"
+            continue
+        }
+        echo -e "  ${BOLD}${app}${RESET} — next ${days} days:"
+        echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (nothing upcoming)')
+    sys.exit()
+for r in data:
+    if 'series' in r:
+        title = f\"{r['series']['title']} - S{r.get('seasonNumber',0):02d}E{r.get('episodeNumber',0):02d}\"
+        date = r.get('airDateUtc', '?')[:10]
+    elif 'title' in r:
+        title = r['title']
+        date = r.get('inCinemas', r.get('digitalRelease', r.get('physicalRelease', '?')))[:10]
+    else:
+        continue
+    has_file = r.get('hasFile', False)
+    icon = '>' if has_file else ' '
+    print(f'    {icon} {date}  {title}')
+" 2>/dev/null
+        echo ""
+    done
+}
+
+cmd_search() {
+    local app="$1" query="$2"
+    [[ -z "$app" || -z "$query" ]] && die "Usage: arr search <sonarr|radarr|lidarr> <query>"
+    app=$(resolve_app "$app")
+
+    local endpoint
+    case "$app" in
+        sonarr)   endpoint="/series/lookup?term=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))")" ;;
+        radarr)   endpoint="/movie/lookup?term=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))")" ;;
+        lidarr)   endpoint="/artist/lookup?term=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))")" ;;
+        *)        die "Search not supported for $app" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "$endpoint") || die "Can't connect to $app"
+
+    echo "$response" | python3 -c "
+import sys, json
+app = '$app'
+data = json.load(sys.stdin)
+if not data:
+    print('  No results.')
+    sys.exit()
+for i, r in enumerate(data[:15]):
+    if app == 'sonarr':
+        title = r.get('title', '?')
+        year = r.get('year', '?')
+        tvdb = r.get('tvdbId', '?')
+        status = r.get('status', '?')
+        print(f'  {i+1:>2}. {title} ({year})  [{status}]  tvdb:{tvdb}')
+    elif app == 'radarr':
+        title = r.get('title', '?')
+        year = r.get('year', '?')
+        tmdb = r.get('tmdbId', '?')
+        print(f'  {i+1:>2}. {title} ({year})  tmdb:{tmdb}')
+    elif app == 'lidarr':
+        name = r.get('artistName', '?')
+        disambiguation = r.get('disambiguation', '')
+        extra = f' ({disambiguation})' if disambiguation else ''
+        foreign_id = r.get('foreignArtistId', '?')
+        print(f'  {i+1:>2}. {name}{extra}  mbid:{foreign_id}')
+"
+}
+
+cmd_library() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr library <sonarr|radarr|lidarr>"
+    app=$(resolve_app "$app")
+
+    local endpoint
+    case "$app" in
+        sonarr)  endpoint="/series" ;;
+        radarr)  endpoint="/movie" ;;
+        lidarr)  endpoint="/artist" ;;
+        *)       die "Library not supported for $app" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "$endpoint") || die "Can't connect to $app"
+
+    echo "$response" | python3 -c "
+import sys, json
+app = '$app'
+data = json.load(sys.stdin)
+total = len(data)
+if app == 'sonarr':
+    monitored = sum(1 for d in data if d.get('monitored'))
+    print(f'  {total} series ({monitored} monitored)')
+    print()
+    for s in sorted(data, key=lambda x: x.get('sortTitle', '')):
+        title = s.get('title', '?')
+        status = s.get('status', '?')
+        eps = s.get('statistics', {}).get('episodeFileCount', 0)
+        total_eps = s.get('statistics', {}).get('totalEpisodeCount', 0)
+        pct = s.get('statistics', {}).get('percentOfEpisodes', 0)
+        mon = '*' if s.get('monitored') else ' '
+        print(f'  {mon} {title:<40} {status:<14} {eps}/{total_eps} eps ({pct:.0f}%)')
+elif app == 'radarr':
+    has_file = sum(1 for d in data if d.get('hasFile'))
+    print(f'  {total} movies ({has_file} downloaded)')
+    print()
+    for m in sorted(data, key=lambda x: x.get('sortTitle', '')):
+        title = m.get('title', '?')
+        year = m.get('year', '?')
+        has = '>' if m.get('hasFile') else ' '
+        quality = m.get('movieFile', {}).get('quality', {}).get('quality', {}).get('name', '') if m.get('hasFile') else ''
+        mon = '*' if m.get('monitored') else ' '
+        print(f'  {mon}{has} {title:<45} ({year})  {quality}')
+elif app == 'lidarr':
+    print(f'  {total} artists')
+    print()
+    for a in sorted(data, key=lambda x: x.get('sortName', '')):
+        name = a.get('artistName', '?')
+        albums = a.get('statistics', {}).get('albumCount', 0)
+        tracks = a.get('statistics', {}).get('trackFileCount', 0)
+        total_tracks = a.get('statistics', {}).get('totalTrackCount', 0)
+        pct = a.get('statistics', {}).get('percentOfTracks', 0)
+        mon = '*' if a.get('monitored') else ' '
+        print(f'  {mon} {name:<40} {albums} albums  {tracks}/{total_tracks} tracks ({pct:.0f}%)')
+"
+}
+
+cmd_system() {
+    local app="${1:-}"
+    local apps_to_check=()
+    if [[ -n "$app" ]]; then
+        apps_to_check=("$(resolve_app "$app")")
+    else
+        apps_to_check=("${ALL_APPS[@]}")
+    fi
+
+    for app in "${apps_to_check[@]}"; do
+        local response
+        response=$(arr_api "$app" GET "/system/status" 2>/dev/null) || {
+            warn "  $app: could not connect"
+            continue
+        }
+        echo -e "  ${BOLD}${app}${RESET}:"
+        echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f\"    Version:    {d.get('version', '?')}\")
+print(f\"    Branch:     {d.get('branch', '?')}\")
+print(f\"    OS:         {d.get('osName', '?')} {d.get('osVersion', '')}\")
+print(f\"    Runtime:    {d.get('runtimeName', '?')} {d.get('runtimeVersion', '')}\")
+start = d.get('startTime', '?')[:19].replace('T', ' ') if d.get('startTime') else '?'
+print(f\"    Started:    {start}\")
+" 2>/dev/null
+        echo ""
+    done
+}
+
+cmd_wanted() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr wanted <sonarr|radarr>"
+    app=$(resolve_app "$app")
+
+    local endpoint
+    case "$app" in
+        sonarr) endpoint="/wanted/missing?pageSize=25&sortKey=airDateUtc&sortDirection=descending" ;;
+        radarr) endpoint="/wanted/missing?pageSize=25&sortKey=digitalRelease&sortDirection=descending" ;;
+        *)      die "Wanted not supported for $app" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "$endpoint") || die "Can't connect to $app"
+
+    echo "$response" | python3 -c "
+import sys, json
+app = '$app'
+data = json.load(sys.stdin)
+total = data.get('totalRecords', 0)
+print(f'  {total} missing items (showing up to 25)')
+print()
+for r in data.get('records', []):
+    if app == 'sonarr':
+        series = r.get('series', {}).get('title', '?')
+        s = r.get('seasonNumber', 0)
+        e = r.get('episodeNumber', 0)
+        title = r.get('title', '')
+        date = r.get('airDateUtc', '?')[:10]
+        print(f'    {date}  {series} S{s:02d}E{e:02d} - {title}')
+    elif app == 'radarr':
+        title = r.get('title', '?')
+        year = r.get('year', '?')
+        print(f'    {title} ({year})')
+"
+}
+
+cmd_health() {
+    local app="${1:-}"
+    local apps_to_check=()
+    if [[ -n "$app" ]]; then
+        apps_to_check=("$(resolve_app "$app")")
+    else
+        apps_to_check=("${ALL_APPS[@]}")
+    fi
+
+    for app in "${apps_to_check[@]}"; do
+        local response
+        response=$(arr_api "$app" GET "/health" 2>/dev/null) || {
+            warn "  $app: could not connect"
+            continue
+        }
+        local count
+        count=$(echo "$response" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
+        if [[ "$count" == "0" ]]; then
+            echo -e "  ${BOLD}${app}${RESET}: ${GREEN}healthy${RESET}"
+        else
+            echo -e "  ${BOLD}${app}${RESET}: ${YELLOW}${count} issues${RESET}"
+            echo "$response" | python3 -c "
+import sys, json
+for h in json.load(sys.stdin):
+    level = h.get('type', '?')
+    msg = h.get('message', '?')
+    source = h.get('source', '')
+    icon = '!' if level == 'warning' else 'X' if level == 'error' else '?'
+    print(f'    {icon} [{source}] {msg}')
+" 2>/dev/null
+        fi
+    done
+}
+
+cmd_diskspace() {
+    local app="${1:-sonarr}"
+    app=$(resolve_app "$app") || app="sonarr"
+
+    local response
+    response=$(arr_api "$app" GET "/diskspace") || die "Can't connect to $app"
+
+    header "DISK SPACE"
+    echo "$response" | python3 -c "
+import sys, json
+for d in json.load(sys.stdin):
+    path = d.get('path', '?')
+    free = d.get('freeSpace', 0) / 1024**3
+    total = d.get('totalSpace', 0) / 1024**3
+    used = total - free
+    pct = (used / total * 100) if total > 0 else 0
+    bar_len = 30
+    filled = int(bar_len * pct / 100)
+    bar = '#' * filled + '-' * (bar_len - filled)
+    color = '\033[32m' if pct < 80 else '\033[33m' if pct < 90 else '\033[31m'
+    print(f'  {path}')
+    print(f'    {color}[{bar}] {pct:.0f}%\033[0m  {used:.1f}/{total:.1f} GB  ({free:.1f} GB free)')
+"
+}
+
+# ── Help ────────────────────────────────────────────────────────
+cmd_help() {
+    show_version "arr"
+    cat <<'HELP'
+
+Unified CLI for Sonarr, Radarr, Lidarr, Prowlarr, and Bazarr.
+
+USAGE:
+  arr <command> [app] [args...]
+
+  App shortcuts: sonarr=s, radarr=r, lidarr=l, prowlarr=p, bazarr=b
+  When [app] is omitted, commands run against all applicable apps.
+
+DASHBOARD:
+  status                        Health check all *ARR services
+  health [app]                  Show health warnings/errors
+  system [app]                  Version and system info
+  diskspace [app]               Disk usage for media paths
+
+QUEUE:
+  queue [app]                   Show download queue
+  queue-clear <app> [--completed]  Remove stuck/completed items
+
+LIBRARY:
+  library <app>                 List all series/movies/artists
+  search <app> <query>          Search for new content to add
+  wanted <app>                  Show missing/wanted episodes/movies
+  calendar [app] [days]         Upcoming releases (default: 7 days)
+
+HISTORY:
+  activity [app]                Recent download/import activity
+
+EXAMPLES:
+  arr status                    Quick health check of all apps
+  arr queue                     Show all download queues
+  arr queue sonarr              Show only Sonarr's queue
+  arr queue-clear s --completed Clear stuck completed downloads from Sonarr
+  arr search s "breaking bad"   Search Sonarr for a series
+  arr search r "inception"      Search Radarr for a movie
+  arr library sonarr            List all series in Sonarr
+  arr wanted sonarr             Show missing episodes
+  arr calendar                  What's coming this week
+  arr activity                  Recent downloads
+  arr health                    Any issues across all apps
+  arr diskspace                 Storage usage
+HELP
+}
+
+# ── Main ────────────────────────────────────────────────────────
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                 cmd_status ;;
+        queue|q)                cmd_queue "${1:-}" ;;
+        queue-clear|qc)         cmd_queue_clear "$@" ;;
+        activity|history)       cmd_activity "${1:-}" ;;
+        calendar|cal)           cmd_calendar "${1:-}" "${2:-7}" ;;
+        search|find)            cmd_search "$@" ;;
+        library|lib|ls)         cmd_library "$@" ;;
+        system|sys|version)     cmd_system "${1:-}" ;;
+        wanted|missing)         cmd_wanted "$@" ;;
+        health|check)           cmd_health "${1:-}" ;;
+        diskspace|disk|df)      cmd_diskspace "${1:-}" ;;
+        help|--help|-h)         cmd_help ;;
+        *)
+            # Try as app shortcut: arr sonarr queue → arr queue sonarr
+            if resolve_app "$cmd" &>/dev/null; then
+                local real_app
+                real_app=$(resolve_app "$cmd")
+                local subcmd="${1:-queue}"
+                shift || true
+                case "$subcmd" in
+                    queue|q)       cmd_queue "$real_app" ;;
+                    activity)      cmd_activity "$real_app" ;;
+                    calendar|cal)  cmd_calendar "$real_app" "${1:-7}" ;;
+                    search|find)   cmd_search "$real_app" "$@" ;;
+                    library|lib)   cmd_library "$real_app" ;;
+                    system|sys)    cmd_system "$real_app" ;;
+                    wanted)        cmd_wanted "$real_app" ;;
+                    health)        cmd_health "$real_app" ;;
+                    *)             die "Unknown subcommand: $subcmd" ;;
+                esac
+            else
+                err "Unknown command: $cmd"
+                cmd_help >&2
+                exit 1
+            fi
+            ;;
+    esac
+}
+
+main "$@"

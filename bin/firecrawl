@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# firecrawl - CLI for self-hosted Firecrawl (Services VM)
+# Upgraded: formatted output, save-to-file, health check, extract
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Config (loaded from ~/.config/homelab-cli/config) ────────
+FIRECRAWL_URL="${FIRECRAWL_URL:-http://localhost:3002}"
+
+# ── Helpers ──────────────────────────────────────────────────
+
+fc_post() {
+    local path="$1"; shift
+    curl -s -X POST "${FIRECRAWL_URL}${path}" \
+        -H "Content-Type: application/json" "$@"
+}
+
+fc_get() { curl -s "${FIRECRAWL_URL}${1}"; }
+
+# ── Commands ─────────────────────────────────────────────────
+
+cmd_scrape() {
+    local url="$1" format="${2:-markdown}" output="${3:-}"
+    local result
+    result=$(URL="$url" FMT="$format" python3 -c "
+import os, json
+print(json.dumps({'url': os.environ['URL'], 'formats': [os.environ['FMT']]}))
+")
+    local response
+    response=$(fc_post "/v1/scrape" -d "$result")
+
+    if [[ -n "$output" ]]; then
+        FMT="$format" python3 -c "
+import sys, json, os
+data = json.loads('''$(echo "$response" | sed "s/'''/\"/g")''')
+if not data.get('success'):
+    print('Error:', data.get('error', 'Unknown'), file=sys.stderr)
+    sys.exit(1)
+content = data.get('data', {})
+fmt = os.environ['FMT']
+text = content.get(fmt, content.get('markdown', ''))
+print(text)
+" > "$output"
+        ok "Saved to $output ($(wc -c < "$output") bytes)"
+    else
+        FMT="$format" python3 <<'PYEOF' - "$response"
+import sys, json, os
+data = json.loads(sys.argv[1]) if len(sys.argv) > 1 else json.load(sys.stdin)
+if not data.get('success'):
+    print('Error:', data.get('error', 'Unknown'), file=sys.stderr)
+    sys.exit(1)
+content = data.get('data', {})
+fmt = os.environ['FMT']
+text = content.get(fmt, content.get('markdown', ''))
+print(text)
+PYEOF
+    fi
+}
+
+cmd_crawl() {
+    local url="$1" limit="${2:-10}"
+    local payload
+    payload=$(URL="$url" LIMIT="$limit" python3 -c "
+import os, json
+print(json.dumps({'url': os.environ['URL'], 'limit': int(os.environ['LIMIT']),
+    'scrapeOptions': {'formats': ['markdown']}}))
+")
+    local response
+    response=$(fc_post "/v1/crawl" -d "$payload")
+
+    python3 <<'PYEOF' - "$response"
+import sys, json
+data = json.loads(sys.argv[1])
+jid = data.get('id', '')
+if not jid:
+    print('Error:', json.dumps(data, indent=2), file=sys.stderr)
+    sys.exit(1)
+print(f'Crawl started: {jid}')
+print(f'Check status:  firecrawl status {jid}')
+PYEOF
+}
+
+cmd_status() {
+    local job_id="$1"
+    fc_get "/v1/crawl/$job_id" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+status = data.get('status', '?')
+total = data.get('total', 0)
+completed = data.get('completed', 0)
+print(f'Status:   {status}')
+print(f'Progress: {completed}/{total}')
+if status == 'completed':
+    pages = data.get('data', [])
+    print(f'Pages:    {len(pages)}')
+    for p in pages[:30]:
+        meta = p.get('metadata', {})
+        title = meta.get('title', '?')[:60]
+        url = meta.get('sourceURL', '?')[:80]
+        print(f'  {title}')
+        print(f'    {url}')
+"
+}
+
+cmd_map() {
+    local url="$1"
+    local payload
+    payload=$(URL="$url" python3 -c "import os,json; print(json.dumps({'url': os.environ['URL']}))")
+    fc_post "/v1/map" -d "$payload" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data.get('success'):
+    print('Error:', data.get('error', 'Unknown'), file=sys.stderr)
+    sys.exit(1)
+links = data.get('links', [])
+print(f'Found {len(links)} URLs:')
+for l in links:
+    print(f'  {l}')
+"
+}
+
+cmd_search() {
+    local query="$1" limit="${2:-5}"
+    local payload
+    payload=$(Q="$query" L="$limit" python3 -c "
+import os, json
+print(json.dumps({'query': os.environ['Q'], 'limit': int(os.environ['L']),
+    'scrapeOptions': {'formats': ['markdown']}}))
+")
+    fc_post "/v1/search" -d "$payload" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data.get('success'):
+    print('Error:', data.get('error', 'Unknown'), file=sys.stderr)
+    sys.exit(1)
+results = data.get('data', [])
+print(f'{len(results)} results:')
+for r in results:
+    meta = r.get('metadata', {})
+    title = meta.get('title', '?')[:70]
+    url = meta.get('sourceURL', '?')
+    print(f'  {title}')
+    print(f'    {url}')
+    desc = meta.get('description', '')[:120]
+    if desc:
+        print(f'    {desc}')
+    print()
+"
+}
+
+cmd_extract() {
+    local url="$1" prompt="$2"
+    local payload
+    payload=$(URL="$url" PROMPT="$prompt" python3 -c "
+import os, json
+print(json.dumps({'urls': [os.environ['URL']], 'prompt': os.environ['PROMPT']}))
+")
+    fc_post "/v1/extract" -d "$payload" | python3 -m json.tool
+}
+
+cmd_health() {
+    local code
+    code=$(curl -s -o /dev/null -w "%{http_code}" "${FIRECRAWL_URL}/v1/scrape" \
+        -X POST -H "Content-Type: application/json" \
+        -d '{"url":"https://example.com","formats":["markdown"]}' 2>/dev/null)
+    if [[ "$code" == "200" ]]; then
+        ok "Firecrawl OK at $FIRECRAWL_URL (HTTP $code)"
+    else
+        warn "Firecrawl returned HTTP $code at $FIRECRAWL_URL"
+    fi
+}
+
+cmd_help() {
+    show_version "firecrawl"
+    cat <<HELP
+CLI for self-hosted Firecrawl (Services VM)
+
+USAGE:
+  firecrawl <command> [args...]
+
+COMMANDS:
+  scrape <url> [format]              Scrape a page (markdown|html|links, default: markdown)
+  scrape <url> <format> <outfile>    Scrape and save to file
+  crawl <url> [limit]                Crawl a site (default: 10 pages)
+  status <job_id>                    Check crawl job status and results
+  map <url>                          Discover all URLs on a site
+  search <query> [limit]             Search the web (default: 5 results)
+  extract <url> <prompt>             Extract structured data with a prompt
+  health                             Check Firecrawl status
+  help                               Show this help
+
+EXAMPLES:
+  firecrawl scrape https://example.com
+  firecrawl scrape https://docs.laravel.com/auth markdown auth.md
+  firecrawl crawl https://docs.laravel.com 20
+  firecrawl status abc-123-def
+  firecrawl map https://spotify.com
+  firecrawl search "spotify wrapped design patterns"
+  firecrawl extract https://example.com "extract all product names and prices"
+
+ENVIRONMENT:
+  FIRECRAWL_URL    Override base URL (default: from config or http://localhost:3002)
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        scrape)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl scrape <url> [format] [outfile]"; exit 1; }
+            cmd_scrape "$1" "${2:-markdown}" "${3:-}"
+            ;;
+        crawl)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl crawl <url> [limit]"; exit 1; }
+            cmd_crawl "$1" "${2:-10}"
+            ;;
+        status)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl status <job_id>"; exit 1; }
+            cmd_status "$1"
+            ;;
+        map)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl map <url>"; exit 1; }
+            cmd_map "$1"
+            ;;
+        search)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl search <query> [limit]"; exit 1; }
+            cmd_search "$1" "${2:-5}"
+            ;;
+        extract)
+            [[ $# -lt 2 ]] && { echo "Usage: firecrawl extract <url> <prompt>"; exit 1; }
+            cmd_extract "$1" "$2"
+            ;;
+        health)   cmd_health ;;
+        help|--help|-h) cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

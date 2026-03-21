@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# vault - Convenience wrapper around bw (Bitwarden/Vaultwarden CLI)
+# Auto-checks unlock status, quick get/search operations.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Helpers ──────────────────────────────────────────────────
+
+check_unlocked() {
+    require_cmd bw
+    local status
+    status=$(bw status 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "error")
+    if [[ "$status" == "locked" ]]; then
+        die "Vault is locked. Run: bw unlock"
+    elif [[ "$status" == "unauthenticated" ]]; then
+        die "Not logged in. Run: bw login"
+    elif [[ "$status" != "unlocked" ]]; then
+        die "Vault status: $status"
+    fi
+}
+
+# ── Commands ─────────────────────────────────────────────────
+
+cmd_status() {
+    require_cmd bw
+    local info
+    info=$(bw status 2>/dev/null)
+    local status server email
+    status=$(echo "$info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','?'))" 2>/dev/null)
+    server=$(echo "$info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('serverUrl','?'))" 2>/dev/null)
+    email=$(echo "$info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('userEmail','?'))" 2>/dev/null)
+
+    local label
+    case "$status" in
+        unlocked)       label="${GREEN}unlocked${RESET}" ;;
+        locked)         label="${YELLOW}locked${RESET}" ;;
+        unauthenticated) label="${RED}not logged in${RESET}" ;;
+        *)              label="$status" ;;
+    esac
+
+    echo -e "  Vault:   $label"
+    echo "  Server:  $server"
+    echo "  Email:   $email"
+}
+
+cmd_get() {
+    local name="$1"
+    check_unlocked
+    bw get password "$name" 2>/dev/null || die "Entry '$name' not found"
+}
+
+cmd_user() {
+    local name="$1"
+    check_unlocked
+    bw get username "$name" 2>/dev/null || die "Entry '$name' not found"
+}
+
+cmd_item() {
+    local name="$1"
+    check_unlocked
+    bw get item "$name" 2>/dev/null | python3 -c "
+import sys, json
+item = json.load(sys.stdin)
+print(f'  Name:     {item.get(\"name\", \"?\")}')
+login = item.get('login', {})
+if login:
+    print(f'  Username: {login.get(\"username\", \"-\")}')
+    pw = login.get('password', '')
+    print(f'  Password: {\"*\" * min(len(pw), 8) if pw else \"-\"}')
+    uris = login.get('uris', [])
+    for u in uris:
+        print(f'  URI:      {u.get(\"uri\", \"\")}')
+notes = item.get('notes', '')
+if notes:
+    print(f'  Notes:    {notes[:100]}')
+"
+}
+
+cmd_search() {
+    local query="$1"
+    check_unlocked
+    bw list items --search "$query" 2>/dev/null | python3 -c "
+import sys, json
+items = json.load(sys.stdin)
+if not items:
+    print('  No results.')
+    sys.exit()
+for i in items:
+    name = i.get('name', '?')
+    login = i.get('login', {})
+    user = login.get('username', '-') if login else '-'
+    uris = login.get('uris', []) if login else []
+    uri = uris[0].get('uri', '') if uris else ''
+    print(f'  {name}')
+    if user != '-':
+        print(f'    user: {user}')
+    if uri:
+        print(f'    uri:  {uri}')
+"
+}
+
+cmd_list() {
+    check_unlocked
+    bw list items 2>/dev/null | python3 -c "
+import sys, json
+items = json.load(sys.stdin)
+print(f'  {len(items)} items in vault:')
+print()
+for i in sorted(items, key=lambda x: x.get('name', '')):
+    name = i.get('name', '?')
+    print(f'  {name}')
+"
+}
+
+cmd_sync() {
+    check_unlocked
+    bw sync 2>/dev/null
+    ok "Vault synced."
+}
+
+cmd_help() {
+    show_version "vault"
+    cat <<'HELP'
+Quick access to Vaultwarden secrets
+
+USAGE:
+  vault <command> [args...]
+
+COMMANDS:
+  status                Check vault status (locked/unlocked)
+  get <name>            Get password by entry name
+  user <name>           Get username by entry name
+  item <name>           Show full item details
+  search <query>        Search entries
+  list                  List all entries
+  sync                  Sync vault
+
+EXAMPLES:
+  vault status
+  vault get "My API Token"
+  vault search proxmox
+  vault item "Cloudflare API"
+
+NOTE:
+  Vault must be unlocked first: bw unlock
+  Then export BW_SESSION="..."
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)         cmd_status ;;
+        get|password)   cmd_get "$1" ;;
+        user|username)  cmd_user "$1" ;;
+        item|show)      cmd_item "$1" ;;
+        search|find)    cmd_search "$1" ;;
+        list|ls)        cmd_list ;;
+        sync)           cmd_sync ;;
+        help|--help|-h) cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

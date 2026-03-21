@@ -1,0 +1,371 @@
+#!/usr/bin/env bash
+# overseerr - CLI for managing Overseerr media requests
+# Approve, decline, search, and monitor requests from the terminal.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+OVERSEERR_URL="${OVERSEERR_URL:-http://localhost:5055}"
+OVERSEERR_API_KEY_SOURCE="${OVERSEERR_API_KEY_SOURCE:-bw}"
+OVERSEERR_API_KEY_BW_ENTRY="${OVERSEERR_API_KEY_BW_ENTRY:-Overseerr API Key}"
+
+# ── API key retrieval ──────────────────────────────────────────
+_overseerr_key=""
+
+get_overseerr_key() {
+    if [[ -n "$_overseerr_key" ]]; then
+        echo "$_overseerr_key"
+        return
+    fi
+
+    local key
+    case "$OVERSEERR_API_KEY_SOURCE" in
+        bw)
+            key=$(get_secret bw "$OVERSEERR_API_KEY_BW_ENTRY")
+            ;;
+        env)
+            key=$(get_secret env "" "OVERSEERR_API_KEY")
+            ;;
+        file)
+            key=$(get_secret file "" "" "${OVERSEERR_API_KEY_FILE:-}")
+            ;;
+        value)
+            key=$(get_secret value "${OVERSEERR_API_KEY:-}")
+            ;;
+        *)
+            die "Unknown secret source: $OVERSEERR_API_KEY_SOURCE"
+            ;;
+    esac
+
+    _overseerr_key="$key"
+    echo "$key"
+}
+
+# ── API helpers ────────────────────────────────────────────────
+overseerr_api() {
+    local method="$1" path="$2" data="${3:-}"
+    local url="${OVERSEERR_URL}/api/v1${path}"
+    local key
+    key=$(get_overseerr_key)
+
+    case "$method" in
+        GET)    api_get "$url" "$key" ;;
+        POST)   api_post "$url" "$key" "$data" ;;
+        DELETE) api_delete "$url" "$key" ;;
+    esac
+}
+
+# ── Commands ───────────────────────────────────────────────────
+
+cmd_status() {
+    header "OVERSEERR STATUS"
+
+    local status
+    status=$(overseerr_api GET "/status") || die "Cannot connect to Overseerr at $OVERSEERR_URL"
+
+    echo "$status" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Version:       {d.get(\"version\", \"?\")}'  )
+print(f'  Commit:        {d.get(\"commitTag\", \"?\")}'  )
+print(f'  Update:        {\"available\" if d.get(\"updateAvailable\") else \"up to date\"}'  )
+print(f'  Restart Req:   {\"yes\" if d.get(\"restartRequired\") else \"no\"}'  )
+"
+
+    local counts
+    counts=$(overseerr_api GET "/request/count") || return
+
+    echo ""
+    echo "$counts" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Requests:')
+print(f'    Total:       {d.get(\"total\", 0)}')
+print(f'    Pending:     \033[33m{d.get(\"pending\", 0)}\033[0m')
+print(f'    Approved:    \033[32m{d.get(\"approved\", 0)}\033[0m')
+print(f'    Processing:  {d.get(\"processing\", 0)}')
+print(f'    Available:   {d.get(\"available\", 0)}')
+print(f'    Declined:    {d.get(\"declined\", 0)}')
+"
+}
+
+cmd_requests() {
+    local filter="${1:-pending}"
+    local status_code=""
+
+    case "$filter" in
+        pending)    status_code="&filter=pending" ;;
+        approved)   status_code="&filter=approved" ;;
+        processing) status_code="&filter=processing" ;;
+        available)  status_code="&filter=available" ;;
+        declined)   status_code="&filter=declined" ;;
+        all)        status_code="" ;;
+        *)          die "Unknown filter: $filter (expected: pending, approved, processing, available, declined, all)" ;;
+    esac
+
+    header "OVERSEERR REQUESTS ($filter)"
+
+    local response
+    response=$(overseerr_api GET "/request?take=20&sort=added${status_code}") || die "Cannot connect to Overseerr"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data.get('results', [])
+total = data.get('pageInfo', {}).get('results', len(results))
+if not results:
+    print('  No requests found.')
+    sys.exit()
+print(f'  Showing {len(results)} of {total} requests\n')
+for r in results:
+    rid = r.get('id', '?')
+    rtype = r.get('type', '?')
+    status_val = r.get('status', 0)
+    status_map = {1: 'PENDING', 2: 'APPROVED', 3: 'DECLINED'}
+    media_status_map = {1: 'unknown', 2: 'pending', 3: 'processing', 4: 'partially available', 5: 'available'}
+    status_str = status_map.get(status_val, str(status_val))
+    media = r.get('media', {})
+    media_status = media_status_map.get(media.get('status', 0), str(media.get('status', '')))
+    user = r.get('requestedBy', {}).get('displayName', r.get('requestedBy', {}).get('email', '?'))
+    created = r.get('createdAt', '?')[:10]
+
+    # Color status
+    if status_str == 'PENDING':
+        color = '\033[33m'
+    elif status_str == 'APPROVED':
+        color = '\033[32m'
+    elif status_str == 'DECLINED':
+        color = '\033[31m'
+    else:
+        color = ''
+
+    title = media.get('title', media.get('originalTitle', ''))
+    if not title:
+        ext_title = media.get('externalServiceSlug', '')
+        title = ext_title if ext_title else f'{rtype} #{media.get(\"tmdbId\", media.get(\"tvdbId\", \"?\"))}'
+
+    print(f'  {color}#{rid:<5}\033[0m {rtype:<6} {title:<45} {color}{status_str:<10}\033[0m {media_status:<12} {user:<15} {created}')
+"
+}
+
+cmd_search() {
+    local query="$*"
+    [[ -z "$query" ]] && die "Usage: overseerr search <query>"
+
+    header "OVERSEERR SEARCH: $query"
+
+    local encoded
+    encoded=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))")
+
+    local response
+    response=$(overseerr_api GET "/search?query=${encoded}&page=1") || die "Cannot connect to Overseerr"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data.get('results', [])
+if not results:
+    print('  No results found.')
+    sys.exit()
+for i, r in enumerate(results[:20]):
+    mtype = r.get('mediaType', '?')
+    if mtype == 'movie':
+        title = r.get('title', '?')
+        year = r.get('releaseDate', '?')[:4] if r.get('releaseDate') else '?'
+        mid = r.get('id', '?')
+        overview = (r.get('overview', '') or '')[:80]
+        status = ''
+        media_info = r.get('mediaInfo', {})
+        if media_info:
+            ms = media_info.get('status', 0)
+            status_map = {1: 'unknown', 2: 'pending', 3: 'processing', 4: 'partial', 5: '\033[32mavailable\033[0m'}
+            status = status_map.get(ms, '')
+        print(f'  {i+1:>2}. \033[1m{title}\033[0m ({year})  [movie]  id:{mid}  {status}')
+        if overview:
+            print(f'      \033[2m{overview}\033[0m')
+    elif mtype == 'tv':
+        title = r.get('name', r.get('title', '?'))
+        year = r.get('firstAirDate', '?')[:4] if r.get('firstAirDate') else '?'
+        mid = r.get('id', '?')
+        overview = (r.get('overview', '') or '')[:80]
+        status = ''
+        media_info = r.get('mediaInfo', {})
+        if media_info:
+            ms = media_info.get('status', 0)
+            status_map = {1: 'unknown', 2: 'pending', 3: 'processing', 4: 'partial', 5: '\033[32mavailable\033[0m'}
+            status = status_map.get(ms, '')
+        print(f'  {i+1:>2}. \033[1m{title}\033[0m ({year})  [tv]  id:{mid}  {status}')
+        if overview:
+            print(f'      \033[2m{overview}\033[0m')
+    elif mtype == 'person':
+        name = r.get('name', '?')
+        print(f'  {i+1:>2}. {name}  [person]')
+    else:
+        print(f'  {i+1:>2}. {r.get(\"title\", r.get(\"name\", \"?\"))}  [{mtype}]')
+"
+}
+
+cmd_approve() {
+    local id="${1:-}"
+    [[ -z "$id" ]] && die "Usage: overseerr approve <request_id>"
+
+    local response
+    response=$(overseerr_api POST "/request/${id}/approve") || die "Failed to approve request #$id"
+    ok "  Request #$id approved"
+}
+
+cmd_decline() {
+    local id="${1:-}"
+    [[ -z "$id" ]] && die "Usage: overseerr decline <request_id>"
+
+    local response
+    response=$(overseerr_api POST "/request/${id}/decline") || die "Failed to decline request #$id"
+    ok "  Request #$id declined"
+}
+
+cmd_delete() {
+    local id="${1:-}"
+    [[ -z "$id" ]] && die "Usage: overseerr delete <request_id>"
+
+    overseerr_api DELETE "/request/${id}" >/dev/null || die "Failed to delete request #$id"
+    ok "  Request #$id deleted"
+}
+
+cmd_request() {
+    local media_type="${1:-}"
+    local media_id="${2:-}"
+    shift 2 2>/dev/null || true
+
+    [[ -z "$media_type" || -z "$media_id" ]] && die "Usage: overseerr request <movie|tv> <media_id> [season_numbers...]"
+
+    local body
+    if [[ "$media_type" == "tv" && $# -gt 0 ]]; then
+        local seasons_json
+        seasons_json=$(python3 -c "
+import json, sys
+seasons = [int(s) for s in sys.argv[1:]]
+print(json.dumps(seasons))
+" "$@")
+        body="{\"mediaType\":\"tv\",\"mediaId\":${media_id},\"seasons\":${seasons_json}}"
+    else
+        body="{\"mediaType\":\"${media_type}\",\"mediaId\":${media_id}}"
+    fi
+
+    local response
+    response=$(overseerr_api POST "/request" "$body") || die "Failed to create request"
+
+    echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rid = d.get('id', '?')
+status_map = {1: 'PENDING', 2: 'APPROVED', 3: 'DECLINED'}
+status = status_map.get(d.get('status', 0), '?')
+print(f'  Request #{rid} created — status: {status}')
+"
+}
+
+cmd_media() {
+    header "OVERSEERR MEDIA"
+
+    local response
+    response=$(overseerr_api GET "/media?take=20") || die "Cannot connect to Overseerr"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data.get('results', [])
+total = data.get('pageInfo', {}).get('results', len(results))
+if not results:
+    print('  No media items found.')
+    sys.exit()
+print(f'  Showing {len(results)} of {total} media items\n')
+status_map = {1: 'unknown', 2: 'pending', 3: 'processing', 4: 'partial', 5: 'available'}
+for m in results:
+    mid = m.get('id', '?')
+    mtype = m.get('mediaType', '?')
+    status = status_map.get(m.get('status', 0), '?')
+    tmdb = m.get('tmdbId', '?')
+    tvdb = m.get('tvdbId', '')
+    added = m.get('createdAt', '?')[:10]
+    ext_id = f'tmdb:{tmdb}' if tmdb else f'tvdb:{tvdb}'
+
+    if status == 'available':
+        color = '\033[32m'
+    elif status == 'processing':
+        color = '\033[33m'
+    elif status == 'pending':
+        color = '\033[33m'
+    else:
+        color = ''
+
+    print(f'  #{mid:<5} {mtype:<6} {color}{status:<12}\033[0m {ext_id:<15} {added}')
+"
+}
+
+# ── Help ───────────────────────────────────────────────────────
+cmd_help() {
+    show_version "overseerr"
+    cat <<'HELP'
+
+CLI for managing Overseerr media requests.
+
+USAGE:
+  overseerr <command> [args...]
+
+COMMANDS:
+  status                            Server status and request counts
+  requests [filter]                 List requests (pending|approved|processing|available|declined|all)
+                                    Default: pending
+  search <query>                    Search for movies or TV shows
+  request <movie|tv> <id> [seasons] Create a new request (seasons for TV only)
+  approve <id>                      Approve a pending request
+  decline <id>                      Decline a pending request
+  delete <id>                       Delete a request
+  media                             List tracked media items
+  help                              Show this help
+
+EXAMPLES:
+  overseerr status                  Check server and request counts
+  overseerr requests                Show pending requests
+  overseerr requests all            Show all requests
+  overseerr search "inception"      Search for a movie
+  overseerr request movie 27205     Request a movie by TMDB ID
+  overseerr request tv 1396 1 2     Request TV show seasons 1 & 2
+  overseerr approve 42              Approve request #42
+  overseerr decline 42              Decline request #42
+
+CONFIG:
+  OVERSEERR_URL                     Server URL (default: http://localhost:5055)
+  OVERSEERR_API_KEY_SOURCE          Secret source: bw, env, file, value (default: bw)
+  OVERSEERR_API_KEY_BW_ENTRY        Bitwarden entry name (default: "Overseerr API Key")
+HELP
+}
+
+# ── Main ───────────────────────────────────────────────────────
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                 cmd_status ;;
+        requests|req)           cmd_requests "${1:-pending}" ;;
+        search|find)            cmd_search "$@" ;;
+        request|add)            cmd_request "$@" ;;
+        approve)                cmd_approve "$@" ;;
+        decline)                cmd_decline "$@" ;;
+        delete|rm)              cmd_delete "$@" ;;
+        media)                  cmd_media ;;
+        help|--help|-h)         cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

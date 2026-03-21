@@ -1,0 +1,6 @@
+# User config (contains IPs, hostnames)
+config
+
+# OS
+.DS_Store
+Thumbs.db

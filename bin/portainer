@@ -1,0 +1,323 @@
+#!/usr/bin/env bash
+# portainer - CLI for managing Portainer instances (Services + Plex VMs)
+# Tokens retrieved from Vaultwarden via `bw` CLI at runtime.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Instance config (from config file, with safe defaults) ──────
+declare -A URLS VAULT_ENTRIES ENDPOINT_IDS CURL_FLAGS
+URLS[services]="${PORTAINER_SERVICES:-https://localhost:9443}"
+URLS[plex]="${PORTAINER_PLEX:-http://localhost:9000}"
+VAULT_ENTRIES[services]="${PORTAINER_SERVICES_BW_ENTRY:-Portainer API - Services VM}"
+VAULT_ENTRIES[plex]="${PORTAINER_PLEX_BW_ENTRY:-Portainer API - Plex VM}"
+ENDPOINT_IDS[services]="${PORTAINER_SERVICES_ENDPOINT_ID:-3}"
+ENDPOINT_IDS[plex]="${PORTAINER_PLEX_ENDPOINT_ID:-3}"
+
+# Determine curl flags from URL scheme
+for _inst in services plex; do
+    if [[ "${URLS[$_inst]}" == https://* ]]; then
+        CURL_FLAGS[$_inst]="-sk"   # HTTPS self-signed
+    else
+        CURL_FLAGS[$_inst]="-s"    # plain HTTP
+    fi
+done
+unset _inst
+
+DEFAULT_INSTANCE="${PORTAINER_DEFAULT_INSTANCE:-services}"
+TOKEN_SOURCE="${PORTAINER_TOKEN_SOURCE:-bw}"
+
+# ── Token cache (per-session) ────────────────────────────────────
+CACHE_DIR="${XDG_RUNTIME_DIR:-/tmp}/portainer-cli-$$"
+mkdir -p "$CACHE_DIR"
+trap 'rm -rf "$CACHE_DIR"' EXIT
+
+get_token() {
+    local instance="$1"
+    local cache_file="$CACHE_DIR/token-$instance"
+
+    if [[ -f "$cache_file" ]]; then
+        cat "$cache_file"
+        return
+    fi
+
+    local token
+    token=$(get_secret "$TOKEN_SOURCE" "${VAULT_ENTRIES[$instance]}") || {
+        die "Failed to get token for $instance. Is vault unlocked? (bw unlock)"
+    }
+    echo "$token" > "$cache_file"
+    echo "$token"
+}
+
+# ── API helpers ──────────────────────────────────────────────────
+pt_api() {
+    local instance="$1" method="$2" path="$3"
+    shift 3
+    local token
+    token=$(get_token "$instance")
+    local url="${URLS[$instance]}/api${path}"
+    local flags="${CURL_FLAGS[$instance]}"
+    # shellcheck disable=SC2086
+    curl $flags -X "$method" "$url" \
+        -H "X-API-Key: $token" \
+        -H "Content-Type: application/json" \
+        "$@"
+}
+
+pt_api_get()    { pt_api "$1" GET "$2"; }
+pt_api_post()   { pt_api "$1" POST "$2" "${@:3}"; }
+pt_api_put()    { pt_api "$1" PUT "$2" "${@:3}"; }
+pt_api_delete() { pt_api "$1" DELETE "$2"; }
+
+fmt_json() { python3 -m json.tool 2>/dev/null || cat; }
+
+# ── Commands ─────────────────────────────────────────────────────
+
+cmd_stacks() {
+    local instance="${1:-$DEFAULT_INSTANCE}"
+    pt_api_get "$instance" "/stacks" | python3 -c "
+import sys, json
+stacks = json.load(sys.stdin)
+if not stacks:
+    print('  No stacks found.')
+    sys.exit()
+print(f'  {\"ID\":<5} {\"Name\":<25} {\"Status\":<12} {\"Created\"}')
+print(f'  {\"─\"*4} {\"─\"*24} {\"─\"*11} {\"─\"*20}')
+for s in sorted(stacks, key=lambda x: x['Id']):
+    status = 'Active' if s.get('Status') == 1 else 'Inactive'
+    name = s.get('Name', '?')
+    sid = s['Id']
+    print(f'  {sid:<5} {name:<25} {status:<12}')
+"
+}
+
+cmd_stack() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    pt_api_get "$instance" "/stacks/$stack_id" | fmt_json
+}
+
+cmd_containers() {
+    local instance="${1:-$DEFAULT_INSTANCE}"
+    local eid="${ENDPOINT_IDS[$instance]}"
+    pt_api_get "$instance" "/endpoints/$eid/docker/containers/json?all=true" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+containers = data if isinstance(data, list) else []
+if not containers:
+    print('  No containers found.')
+    sys.exit()
+print(f'  {\"Name\":<30} {\"State\":<12} {\"Status\":<25} {\"Image\"}')
+print(f'  {\"─\"*29} {\"─\"*11} {\"─\"*24} {\"─\"*40}')
+for c in sorted(containers, key=lambda x: x.get('Names',[''])[0]):
+    name = c.get('Names',['?'])[0].lstrip('/')
+    state = c.get('State', '?')
+    status = c.get('Status', '?')
+    image = c.get('Image', '?')[:50]
+    print(f'  {name:<30} {state:<12} {status:<25} {image}')
+"
+}
+
+cmd_logs() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2" tail="${3:-100}"
+    local eid="${ENDPOINT_IDS[$instance]}"
+
+    local container_id
+    container_id=$(pt_api_get "$instance" "/endpoints/$eid/docker/containers/json?all=true" | \
+        SEARCH="$container_name" python3 -c "
+import sys, json, os
+search = os.environ['SEARCH']
+for c in json.load(sys.stdin):
+    if any(n.lstrip('/') == search for n in c.get('Names',[])):
+        print(c['Id'][:12])
+        sys.exit()
+print('NOT_FOUND')
+" 2>/dev/null)
+
+    if [[ "$container_id" == "NOT_FOUND" || -z "$container_id" ]]; then
+        die "Container '$container_name' not found on $instance"
+    fi
+
+    pt_api_get "$instance" "/endpoints/$eid/docker/containers/$container_id/logs?stdout=true&stderr=true&tail=$tail" 2>/dev/null | \
+        sed 's/^.\{8\}//g'
+}
+
+cmd_restart() {
+    local instance="${1:-$DEFAULT_INSTANCE}" container_name="$2"
+    local eid="${ENDPOINT_IDS[$instance]}"
+
+    local container_id
+    container_id=$(pt_api_get "$instance" "/endpoints/$eid/docker/containers/json?all=true" | \
+        SEARCH="$container_name" python3 -c "
+import sys, json, os
+search = os.environ['SEARCH']
+for c in json.load(sys.stdin):
+    if any(n.lstrip('/') == search for n in c.get('Names',[])):
+        print(c['Id'][:12])
+        sys.exit()
+print('NOT_FOUND')
+" 2>/dev/null)
+
+    if [[ "$container_id" == "NOT_FOUND" || -z "$container_id" ]]; then
+        die "Container '$container_name' not found on $instance"
+    fi
+
+    info "Restarting $container_name on $instance..."
+    pt_api_post "$instance" "/endpoints/$eid/docker/containers/$container_id/restart" > /dev/null
+    ok "Done."
+}
+
+cmd_redeploy() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id eid
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    eid="${ENDPOINT_IDS[$instance]}"
+
+    # Get current stack config
+    local stack_data
+    stack_data=$(pt_api_get "$instance" "/stacks/$stack_id")
+
+    local env_vars compose
+    env_vars=$(echo "$stack_data" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin).get('Env', [])))")
+    compose=$(pt_api_get "$instance" "/stacks/$stack_id/file" | python3 -c "import sys,json; print(json.load(sys.stdin).get('StackFileContent', ''))")
+
+    info "Redeploying stack '$stack_name' (ID: $stack_id) on $instance..."
+    pt_api_put "$instance" "/stacks/$stack_id?endpointId=$eid" \
+        -d "$(python3 -c "
+import json, sys
+print(json.dumps({
+    'stackFileContent': '''$( echo "$compose" | sed "s/'/'\\\\''/g" )''',
+    'env': $env_vars,
+    'prune': True,
+    'pullImage': True
+}))
+")" > /dev/null
+    ok "Done. Stack redeployed with image pull + prune."
+}
+
+cmd_compose() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    pt_api_get "$instance" "/stacks/$stack_id/file" | python3 -c "
+import sys, json
+print(json.load(sys.stdin).get('StackFileContent', 'No compose file found'))
+"
+}
+
+cmd_env() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    pt_api_get "$instance" "/stacks/$stack_id" | python3 -c "
+import sys, json
+stack = json.load(sys.stdin)
+env = stack.get('Env', [])
+if not env:
+    print('  No environment variables.')
+    sys.exit()
+for e in sorted(env, key=lambda x: x['name']):
+    print(f'  {e[\"name\"]}={e[\"value\"]}')
+"
+}
+
+cmd_status() {
+    for inst in services plex; do
+        local ver
+        ver=$(curl ${CURL_FLAGS[$inst]} "${URLS[$inst]}/api/status" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version','?'))" 2>/dev/null || echo "unreachable")
+        printf "  %-10s %s  (v%s)\n" "$inst" "${URLS[$inst]}" "$ver"
+    done
+}
+
+# ── Helpers ──────────────────────────────────────────────────────
+
+resolve_stack_id() {
+    local instance="$1" stack_name="$2"
+    local result
+    result=$(pt_api_get "$instance" "/stacks" | SEARCH="$stack_name" python3 -c "
+import sys, json, os
+name = os.environ['SEARCH']
+for s in json.load(sys.stdin):
+    if s['Name'] == name:
+        print(s['Id'])
+        sys.exit()
+# Try numeric ID
+try:
+    print(int(name))
+except:
+    print('NOT_FOUND')
+" 2>/dev/null)
+
+    if [[ "$result" == "NOT_FOUND" || -z "$result" ]]; then
+        err "Stack '$stack_name' not found on $instance"
+        echo "Available stacks:" >&2
+        cmd_stacks "$instance" >&2
+        exit 1
+    fi
+    echo "$result"
+}
+
+cmd_help() {
+    show_version "portainer"
+    cat <<'HELP'
+
+Manage Portainer instances (Services + Plex VMs)
+
+USAGE:
+  portainer <command> [instance] [args...]
+
+  Instance: "services" (default) or "plex"
+
+COMMANDS:
+  status                          Show all Portainer instances and versions
+  stacks [instance]               List all stacks
+  stack <instance> <name>         Show stack details (JSON)
+  compose <instance> <name>       Show stack docker-compose.yml
+  env <instance> <name>           Show stack environment variables
+  containers [instance]           List all containers
+  logs <instance> <name> [tail]   Show container logs (default: last 100 lines)
+  restart <instance> <name>       Restart a container
+  redeploy <instance> <name>      Redeploy stack (pull images + prune)
+  help                            Show this help
+
+EXAMPLES:
+  portainer status
+  portainer stacks plex
+  portainer containers services
+  portainer logs plex koel 50
+  portainer compose plex music
+  portainer redeploy plex music
+  portainer restart services firecrawl
+
+TOKENS:
+  Retrieved from Vaultwarden (bw CLI) at runtime. Unlock with: bw unlock
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────────
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)     cmd_status ;;
+        stacks|ls)  cmd_stacks "${1:-$DEFAULT_INSTANCE}" ;;
+        stack)      cmd_stack "$1" "$2" ;;
+        compose)    cmd_compose "$1" "$2" ;;
+        env)        cmd_env "$1" "$2" ;;
+        containers|ps) cmd_containers "${1:-$DEFAULT_INSTANCE}" ;;
+        logs)       cmd_logs "$1" "$2" "${3:-100}" ;;
+        restart)    cmd_restart "$1" "$2" ;;
+        redeploy)   cmd_redeploy "$1" "$2" ;;
+        help|--help|-h) cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# sab - CLI for SABnzbd Usenet downloader
+# Queue management, history, and status via the SABnzbd API.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+SAB_URL="${SAB_URL:-http://localhost:8090}"
+SAB_API_KEY_SOURCE="${SAB_API_KEY_SOURCE:-bw}"
+SAB_API_KEY_BW_ENTRY="${SAB_API_KEY_BW_ENTRY:-SABnzbd API Key}"
+
+# ── API key management ─────────────────────────────────────────
+_sab_key=""
+
+get_sab_key() {
+    if [[ -n "$_sab_key" ]]; then echo "$_sab_key"; return; fi
+    local key
+    key=$(get_secret "$SAB_API_KEY_SOURCE" "$SAB_API_KEY_BW_ENTRY") || {
+        die "Can't get SABnzbd API key. Is vault unlocked? (bw unlock)"
+    }
+    _sab_key="$key"
+    echo "$key"
+}
+
+sab_api() {
+    local mode="$1"
+    shift
+    local key
+    key=$(get_sab_key)
+
+    local extra=""
+    for arg in "$@"; do
+        extra="${extra}&${arg}"
+    done
+
+    curl -sf "${SAB_URL}/api?apikey=${key}&mode=${mode}&output=json${extra}" 2>/dev/null
+}
+
+# ── Commands ───────────────────────────────────────────────────
+
+cmd_status() {
+    header "SABNZBD STATUS"
+
+    local version
+    version=$(sab_api "version") || die "Can't connect to SABnzbd"
+    echo "$version" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Version:  {d.get(\"version\", \"?\")}')" 2>/dev/null
+    echo -e "  URL:      ${DIM}${SAB_URL}${RESET}"
+    echo ""
+
+    local queue
+    queue=$(sab_api "queue") || die "Can't get queue"
+    echo "$queue" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('queue', {})
+status = d.get('status', '?')
+speed = d.get('speed', '?')
+size_left = d.get('sizeleft', '?')
+time_left = d.get('timeleft', '?')
+mb_left = d.get('mbleft', '0')
+slots = len(d.get('slots', []))
+paused = d.get('paused', False)
+
+state_str = f'{status} (paused)' if paused else status
+print(f'  Status:    {state_str}')
+print(f'  Speed:     {speed}')
+print(f'  Remaining: {size_left} ({time_left} left)')
+print(f'  Queue:     {slots} items')
+"
+}
+
+cmd_queue() {
+    header "SABNZBD QUEUE"
+
+    local queue
+    queue=$(sab_api "queue") || die "Can't get queue"
+    echo "$queue" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('queue', {})
+slots = d.get('slots', [])
+speed = d.get('speed', '?')
+size_left = d.get('sizeleft', '?')
+time_left = d.get('timeleft', '?')
+
+print(f'  Speed: {speed}  |  Remaining: {size_left}  |  ETA: {time_left}')
+print()
+
+if not slots:
+    print('  (queue empty)')
+    sys.exit()
+
+print(f'  {\"Name\":<50} {\"Size\":>9}  {\"Done\":>5}  {\"Status\":<12} {\"ETA\":>10}')
+print(f'  {\"─\"*50} {\"─\"*9}  {\"─\"*5}  {\"─\"*12} {\"─\"*10}')
+
+for s in slots:
+    name = s.get('filename', '?')[:50]
+    size = s.get('size', '?')
+    pct = f'{float(s.get(\"percentage\", 0)):.0f}%'
+    status = s.get('status', '?')
+    timeleft = s.get('timeleft', '?')
+    print(f'  {name:<50} {size:>9}  {pct:>5}  {status:<12} {timeleft:>10}')
+"
+}
+
+cmd_history() {
+    local limit="${1:-20}"
+    header "SABNZBD HISTORY (last ${limit})"
+
+    local history
+    history=$(sab_api "history" "limit=${limit}") || die "Can't get history"
+    echo "$history" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('history', {})
+slots = d.get('slots', [])
+total = d.get('noofslots', 0)
+
+print(f'  Total history: {total} items (showing {len(slots)})')
+print()
+
+if not slots:
+    print('  (no history)')
+    sys.exit()
+
+def fmt_size(b):
+    b = float(b) * 1024 * 1024  # SAB gives MB
+    for u in ['MB','GB','TB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} PB'
+
+print(f'  {\"Name\":<50} {\"Size\":>9}  {\"Status\":<12} {\"Completed\"}')
+print(f'  {\"─\"*50} {\"─\"*9}  {\"─\"*12} {\"─\"*19}')
+
+for s in slots:
+    name = s.get('name', '?')[:50]
+    size = s.get('size', '?')
+    status = s.get('status', '?')
+    completed = s.get('completed', 0)
+
+    import datetime
+    try:
+        date = datetime.datetime.fromtimestamp(completed).strftime('%Y-%m-%d %H:%M')
+    except:
+        date = '?'
+
+    color = '\033[32m' if status == 'Completed' else '\033[31m' if status == 'Failed' else ''
+    reset = '\033[0m' if color else ''
+    print(f'  {name:<50} {size:>9}  {color}{status:<12}{reset} {date}')
+"
+}
+
+cmd_pause() {
+    sab_api "pause" >/dev/null || die "Failed to pause queue"
+    ok "  SABnzbd queue paused."
+}
+
+cmd_resume() {
+    sab_api "resume" >/dev/null || die "Failed to resume queue"
+    ok "  SABnzbd queue resumed."
+}
+
+cmd_add() {
+    local url="${1:-}"
+    [[ -z "$url" ]] && die "Usage: sab add <nzb_url>"
+
+    local result
+    result=$(sab_api "addurl" "name=${url}") || die "Failed to add NZB"
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+status = d.get('status', False)
+if status:
+    print('  NZB added successfully.')
+else:
+    print(f'  Failed: {d.get(\"error\", \"unknown error\")}')
+    sys.exit(1)
+"
+}
+
+cmd_speed() {
+    local queue
+    queue=$(sab_api "queue") || die "Can't get queue"
+    echo "$queue" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('queue', {})
+speed = d.get('speed', '?')
+print(f'  Download: {speed}')
+"
+}
+
+cmd_help() {
+    show_version "sab"
+    cat <<'HELP'
+
+CLI for SABnzbd Usenet downloader.
+
+USAGE:
+  sab <command> [args...]
+
+STATUS:
+  status                      Version, queue summary, and speed
+  speed                       Current download speed
+
+QUEUE:
+  queue                       Show current download queue
+  history [count]             Download history (default: 20)
+  add <nzb_url>               Add NZB by URL
+  pause                       Pause the queue
+  resume                      Resume the queue
+
+EXAMPLES:
+  sab status
+  sab queue                   Show active downloads
+  sab history 50              Show last 50 completed downloads
+  sab pause                   Pause all downloads
+  sab resume                  Resume downloading
+  sab speed                   Check current speed
+  sab add "https://..."       Add NZB by URL
+HELP
+}
+
+# ── Main ───────────────────────────────────────────────────────
+
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)             cmd_status ;;
+        queue|q)            cmd_queue ;;
+        history|hist|h)     cmd_history "${1:-20}" ;;
+        add)                cmd_add "$@" ;;
+        pause)              cmd_pause ;;
+        resume)             cmd_resume ;;
+        speed)              cmd_speed ;;
+        help|--help|-h)     cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

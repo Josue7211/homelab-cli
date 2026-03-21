@@ -1,0 +1,434 @@
+#!/usr/bin/env bash
+# jellyfin - CLI for managing and monitoring Jellyfin media server
+# View streams, libraries, devices, and trigger scans from the terminal.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+JELLYFIN_URL="${JELLYFIN_URL:-http://localhost:8096}"
+JELLYFIN_API_KEY_SOURCE="${JELLYFIN_API_KEY_SOURCE:-bw}"
+JELLYFIN_API_KEY_BW_ENTRY="${JELLYFIN_API_KEY_BW_ENTRY:-Jellyfin API Key}"
+
+# ── API key retrieval ──────────────────────────────────────────
+_jellyfin_key=""
+
+get_jellyfin_key() {
+    if [[ -n "$_jellyfin_key" ]]; then
+        echo "$_jellyfin_key"
+        return
+    fi
+
+    local key
+    case "$JELLYFIN_API_KEY_SOURCE" in
+        bw)
+            key=$(get_secret bw "$JELLYFIN_API_KEY_BW_ENTRY")
+            ;;
+        env)
+            key=$(get_secret env "" "JELLYFIN_API_KEY")
+            ;;
+        file)
+            key=$(get_secret file "" "" "${JELLYFIN_API_KEY_FILE:-}")
+            ;;
+        value)
+            key=$(get_secret value "${JELLYFIN_API_KEY:-}")
+            ;;
+        *)
+            die "Unknown secret source: $JELLYFIN_API_KEY_SOURCE"
+            ;;
+    esac
+
+    _jellyfin_key="$key"
+    echo "$key"
+}
+
+# ── API helpers ────────────────────────────────────────────────
+# Jellyfin uses Authorization: MediaBrowser Token="<key>" instead of X-Api-Key
+jellyfin_api() {
+    local method="$1" path="$2" data="${3:-}"
+    local url="${JELLYFIN_URL}${path}"
+    local key
+    key=$(get_jellyfin_key)
+    local auth_header="Authorization: MediaBrowser Token=\"${key}\""
+
+    case "$method" in
+        GET)
+            curl -sf "$url" \
+                -H "$auth_header" \
+                2>/dev/null
+            ;;
+        POST)
+            if [[ -n "$data" ]]; then
+                curl -sf -X POST "$url" \
+                    -H "$auth_header" \
+                    -H "Content-Type: application/json" \
+                    -d "$data" \
+                    2>/dev/null
+            else
+                curl -sf -X POST "$url" \
+                    -H "$auth_header" \
+                    -H "Content-Type: application/json" \
+                    2>/dev/null
+            fi
+            ;;
+        DELETE)
+            curl -sf -X DELETE "$url" \
+                -H "$auth_header" \
+                2>/dev/null
+            ;;
+    esac
+}
+
+# ── Commands ───────────────────────────────────────────────────
+
+cmd_status() {
+    header "JELLYFIN STATUS"
+
+    local info
+    info=$(jellyfin_api GET "/System/Info") || die "Cannot connect to Jellyfin at $JELLYFIN_URL"
+
+    echo "$info" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Server Name:   {d.get(\"ServerName\", \"?\")}'  )
+print(f'  Version:       {d.get(\"Version\", \"?\")}'  )
+print(f'  OS:            {d.get(\"OperatingSystem\", \"?\")}'  )
+print(f'  Architecture:  {d.get(\"SystemArchitecture\", \"?\")}'  )
+print(f'  Local Address: {d.get(\"LocalAddress\", \"?\")}'  )
+print(f'  Has Updates:   {\"yes\" if d.get(\"HasUpdateAvailable\") else \"no\"}'  )
+startup = d.get('StartupWizardCompleted', '?')
+print(f'  Wizard Done:   {startup}')
+trans = d.get('TranscodingTempPath', '')
+if trans:
+    print(f'  Transcode Dir: {trans}')
+"
+}
+
+cmd_streams() {
+    header "JELLYFIN ACTIVE STREAMS"
+
+    local sessions
+    sessions=$(jellyfin_api GET "/Sessions") || die "Cannot connect to Jellyfin"
+
+    echo "$sessions" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+
+# Filter to sessions that have NowPlayingItem
+active = [s for s in data if s.get('NowPlayingItem')]
+
+if not active:
+    print('  No active streams.')
+    sys.exit()
+
+print(f'  {len(active)} active stream(s)\n')
+
+for s in active:
+    user = s.get('UserName', '?')
+    client = s.get('Client', '?')
+    device = s.get('DeviceName', '?')
+    np = s.get('NowPlayingItem', {})
+    title = np.get('Name', '?')
+    series = np.get('SeriesName', '')
+    season = np.get('ParentIndexNumber', '')
+    episode = np.get('IndexNumber', '')
+    media_type = np.get('Type', '?')
+
+    if series:
+        display = f'{series} - S{season:02d}E{episode:02d} - {title}' if season and episode else f'{series} - {title}'
+    else:
+        year = np.get('ProductionYear', '')
+        display = f'{title} ({year})' if year else title
+
+    # Playback info
+    play_state = s.get('PlayState', {})
+    is_paused = play_state.get('IsPaused', False)
+    method = play_state.get('PlayMethod', '?')
+    position_ticks = play_state.get('PositionTicks', 0)
+    runtime_ticks = np.get('RunTimeTicks', 0)
+    position_min = position_ticks // 600000000 if position_ticks else 0
+    runtime_min = runtime_ticks // 600000000 if runtime_ticks else 0
+
+    state_icon = '\033[33mPAUSED\033[0m' if is_paused else '\033[32mPLAYING\033[0m'
+
+    # Transcoding info
+    trans = s.get('TranscodingInfo', {})
+    if trans:
+        transcode_str = f'transcode ({trans.get(\"VideoCodec\", \"?\")} / {trans.get(\"AudioCodec\", \"?\")}) {trans.get(\"CompletionPercentage\", 0):.0f}% buffered'
+    else:
+        transcode_str = 'direct play' if method == 'DirectPlay' else method
+
+    print(f'  \033[1m{user}\033[0m on {client} ({device})')
+    print(f'    {state_icon}  {display}  [{media_type}]')
+    print(f'    {position_min}m / {runtime_min}m  {transcode_str}')
+    print()
+"
+}
+
+cmd_libraries() {
+    header "JELLYFIN LIBRARIES"
+
+    local libraries
+    libraries=$(jellyfin_api GET "/Library/VirtualFolders") || die "Cannot connect to Jellyfin"
+
+    echo "$libraries" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No libraries found.')
+    sys.exit()
+for lib in data:
+    name = lib.get('Name', '?')
+    ctype = lib.get('CollectionType', 'mixed')
+    item_id = lib.get('ItemId', '?')
+    locations = lib.get('Locations', [])
+    refresh = lib.get('RefreshStatus', '')
+
+    type_icons = {
+        'movies': 'Movies',
+        'tvshows': 'TV Shows',
+        'music': 'Music',
+        'books': 'Books',
+        'photos': 'Photos',
+        'homevideos': 'Home Videos',
+        'mixed': 'Mixed',
+        'boxsets': 'Collections',
+    }
+    display_type = type_icons.get(ctype, ctype or 'Mixed')
+
+    print(f'  \033[1m{name}\033[0m  [{display_type}]  id:{item_id}')
+    for loc in locations:
+        print(f'    \033[2m{loc}\033[0m')
+    if refresh:
+        print(f'    \033[33mRefreshing: {refresh}\033[0m')
+    print()
+"
+}
+
+cmd_recent() {
+    local count="${1:-15}"
+    header "JELLYFIN RECENTLY ADDED (last $count)"
+
+    local items
+    items=$(jellyfin_api GET "/Items/Latest?Limit=${count}") || die "Cannot connect to Jellyfin"
+
+    echo "$items" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No recently added items.')
+    sys.exit()
+for item in data:
+    name = item.get('Name', '?')
+    itype = item.get('Type', '?')
+    series = item.get('SeriesName', '')
+    season = item.get('ParentIndexNumber', '')
+    episode = item.get('IndexNumber', '')
+    year = item.get('ProductionYear', '')
+    added = item.get('DateCreated', '?')[:10]
+    item_id = item.get('Id', '?')
+
+    if series:
+        if season and episode:
+            display = f'{series} - S{int(season):02d}E{int(episode):02d} - {name}'
+        else:
+            display = f'{series} - {name}'
+    else:
+        display = f'{name} ({year})' if year else name
+
+    type_color = {
+        'Movie': '\033[34m',
+        'Episode': '\033[36m',
+        'Audio': '\033[35m',
+        'MusicAlbum': '\033[35m',
+        'Series': '\033[36m',
+    }
+    color = type_color.get(itype, '')
+    print(f'  {added}  {color}{itype:<12}\033[0m {display}')
+"
+}
+
+cmd_search() {
+    local query="$*"
+    [[ -z "$query" ]] && die "Usage: jellyfin search <query>"
+
+    header "JELLYFIN SEARCH: $query"
+
+    local encoded
+    encoded=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$query'))")
+
+    local response
+    response=$(jellyfin_api GET "/Items?searchTerm=${encoded}&Recursive=true&Limit=25") || die "Cannot connect to Jellyfin"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+items = data.get('Items', [])
+total = data.get('TotalRecordCount', len(items))
+if not items:
+    print('  No results found.')
+    sys.exit()
+print(f'  {len(items)} of {total} results\n')
+for i, item in enumerate(items):
+    name = item.get('Name', '?')
+    itype = item.get('Type', '?')
+    year = item.get('ProductionYear', '')
+    item_id = item.get('Id', '?')
+    series = item.get('SeriesName', '')
+
+    if series:
+        season = item.get('ParentIndexNumber', '')
+        episode = item.get('IndexNumber', '')
+        if season and episode:
+            display = f'{series} - S{int(season):02d}E{int(episode):02d} - {name}'
+        else:
+            display = f'{series} - {name}'
+    else:
+        display = f'{name} ({year})' if year else name
+
+    type_color = {
+        'Movie': '\033[34m',
+        'Episode': '\033[36m',
+        'Audio': '\033[35m',
+        'MusicAlbum': '\033[35m',
+        'Series': '\033[36m',
+    }
+    color = type_color.get(itype, '')
+    print(f'  {i+1:>2}. {color}{itype:<12}\033[0m \033[1m{display}\033[0m  id:{item_id}')
+"
+}
+
+cmd_scan() {
+    header "JELLYFIN LIBRARY SCAN"
+
+    jellyfin_api POST "/Library/Refresh" || die "Failed to trigger library scan"
+    ok "  Library scan triggered successfully"
+}
+
+cmd_devices() {
+    header "JELLYFIN DEVICES"
+
+    local devices
+    devices=$(jellyfin_api GET "/Devices") || die "Cannot connect to Jellyfin"
+
+    echo "$devices" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+items = data.get('Items', data) if isinstance(data, dict) else data
+if not items:
+    print('  No devices found.')
+    sys.exit()
+if isinstance(items, list):
+    device_list = items
+else:
+    device_list = items if isinstance(items, list) else [items]
+
+print(f'  {len(device_list)} registered device(s)\n')
+for d in device_list:
+    name = d.get('Name', '?')
+    app_name = d.get('AppName', '?')
+    app_ver = d.get('AppVersion', '?')
+    last_user = d.get('LastUserName', '?')
+    last_seen = d.get('DateLastActivity', '?')[:16].replace('T', ' ') if d.get('DateLastActivity') else '?'
+    device_id = d.get('Id', '?')
+
+    print(f'  \033[1m{name}\033[0m  ({app_name} {app_ver})')
+    print(f'    Last user: {last_user}   Last seen: {last_seen}')
+    print(f'    \033[2mID: {device_id}\033[0m')
+    print()
+"
+}
+
+cmd_logs() {
+    header "JELLYFIN LOG FILES"
+
+    local logs
+    logs=$(jellyfin_api GET "/System/Logs") || die "Cannot connect to Jellyfin"
+
+    echo "$logs" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No log files found.')
+    sys.exit()
+for f in data[:20]:
+    name = f.get('Name', '?')
+    modified = f.get('DateModified', '?')[:16].replace('T', ' ') if f.get('DateModified') else '?'
+    size = f.get('Size', 0)
+    # Human-readable size
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 1024:
+            size_str = f'{size:.1f} {unit}'
+            break
+        size /= 1024
+    else:
+        size_str = f'{size:.1f} TB'
+    print(f'  {modified}  {size_str:>10}  {name}')
+"
+}
+
+# ── Help ───────────────────────────────────────────────────────
+cmd_help() {
+    show_version "jellyfin"
+    cat <<'HELP'
+
+CLI for managing and monitoring Jellyfin media server.
+
+USAGE:
+  jellyfin <command> [args...]
+
+COMMANDS:
+  status                    Server information and version
+  streams                   Active sessions and current streams
+  libraries                 List media libraries and paths
+  recent [count]            Recently added items (default: 15)
+  search <query>            Search for content across libraries
+  scan                      Trigger a library scan/refresh
+  devices                   List registered devices
+  logs                      List server log files
+  help                      Show this help
+
+EXAMPLES:
+  jellyfin status           Server version and system info
+  jellyfin streams          Who's watching right now
+  jellyfin libraries        Show all libraries and paths
+  jellyfin recent           Last 15 items added
+  jellyfin recent 30        Last 30 items added
+  jellyfin search "matrix"  Search for content
+  jellyfin scan             Refresh all libraries
+  jellyfin devices          Show all registered clients
+
+CONFIG:
+  JELLYFIN_URL              Server URL (default: http://localhost:8096)
+  JELLYFIN_API_KEY_SOURCE   Secret source: bw, env, file, value (default: bw)
+  JELLYFIN_API_KEY_BW_ENTRY Bitwarden entry name (default: "Jellyfin API Key")
+HELP
+}
+
+# ── Main ───────────────────────────────────────────────────────
+main() {
+    require_curl
+    require_python
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        status)                 cmd_status ;;
+        streams|sessions)       cmd_streams ;;
+        libraries|libs)         cmd_libraries ;;
+        recent|latest|new)      cmd_recent "${1:-15}" ;;
+        search|find)            cmd_search "$@" ;;
+        scan|refresh)           cmd_scan ;;
+        devices)                cmd_devices ;;
+        logs)                   cmd_logs ;;
+        help|--help|-h)         cmd_help ;;
+        *)
+            err "Unknown command: $cmd"
+            cmd_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
