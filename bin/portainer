@@ -192,6 +192,87 @@ for e in sorted(env, key=lambda x: x['name']):
 "
 }
 
+cmd_create() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    shift 2 || { err "Usage: portainer create <instance> <name> [-f <file>] [--inline] [--env K=V...]"; exit 1; }
+
+    local compose_content="" env_vars="[]" mode=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -f|--file) mode="file"; compose_content=$(cat "$2"); shift 2 ;;
+            --inline)  mode="inline"; shift ;;
+            --env)     shift
+                       # Collect remaining K=V pairs as env
+                       local env_json="["
+                       local first=true
+                       while [[ $# -gt 0 && "$1" != -* ]]; do
+                           local key="${1%%=*}" val="${1#*=}"
+                           [[ "$first" == "true" ]] && first=false || env_json+=","
+                           env_json+="{\"name\":\"$key\",\"value\":\"$val\"}"
+                           shift
+                       done
+                       env_json+="]"
+                       env_vars="$env_json"
+                       ;;
+            *)  err "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    # Read from stdin if --inline
+    if [[ "$mode" == "inline" ]]; then
+        compose_content=$(cat)
+    fi
+
+    if [[ -z "$compose_content" ]]; then
+        die "No compose content provided. Use -f <file> or --inline (pipe via stdin)"
+    fi
+
+    local eid="${ENDPOINT_IDS[$instance]}"
+    info "Creating stack '$stack_name' on $instance..."
+    local payload
+    payload=$(STACK="$stack_name" COMPOSE="$compose_content" ENV="$env_vars" python3 -c "
+import json, os
+print(json.dumps({
+    'name': os.environ['STACK'],
+    'stackFileContent': os.environ['COMPOSE'],
+    'env': json.loads(os.environ['ENV'])
+}))
+")
+    pt_api_post "$instance" "/stacks/create/standalone/string?endpointId=$eid" -d "$payload" > /dev/null
+    ok "Stack '$stack_name' created on $instance."
+}
+
+cmd_delete_stack() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id eid
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    eid="${ENDPOINT_IDS[$instance]}"
+    confirm_action "Delete stack '$stack_name' (ID: $stack_id) on $instance?"
+    info "Deleting stack '$stack_name'..."
+    pt_api_delete "$instance" "/stacks/$stack_id?endpointId=$eid"
+    ok "Stack '$stack_name' deleted."
+}
+
+cmd_start_stack() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id eid
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    eid="${ENDPOINT_IDS[$instance]}"
+    info "Starting stack '$stack_name' on $instance..."
+    pt_api_post "$instance" "/stacks/$stack_id/start?endpointId=$eid" > /dev/null
+    ok "Stack '$stack_name' started."
+}
+
+cmd_stop_stack() {
+    local instance="${1:-$DEFAULT_INSTANCE}" stack_name="$2"
+    local stack_id eid
+    stack_id=$(resolve_stack_id "$instance" "$stack_name")
+    eid="${ENDPOINT_IDS[$instance]}"
+    info "Stopping stack '$stack_name' on $instance..."
+    pt_api_post "$instance" "/stacks/$stack_id/stop?endpointId=$eid" > /dev/null
+    ok "Stack '$stack_name' stopped."
+}
+
 cmd_status() {
     for inst in services plex; do
         local ver
@@ -270,6 +351,11 @@ COMMANDS:
   logs <instance> <name> [tail]   Show container logs (default: last 100 lines)
   restart <instance> <name>       Restart a container
   redeploy <instance> <name>      Redeploy stack (pull images + prune)
+  create <inst> <name> -f <file> [--env K=V...]  Create stack from compose file
+  create <inst> <name> --inline [--env K=V...]   Create stack from stdin
+  delete <inst> <name>            Delete stack (with confirmation)
+  start-stack <inst> <name>       Start a stopped stack
+  stop-stack <inst> <name>        Stop a running stack
   help                            Show this help
 
 EXAMPLES:
@@ -302,6 +388,10 @@ main() {
         logs)       cmd_logs "$1" "$2" "${3:-100}" ;;
         restart)    cmd_restart "$1" "$2" ;;
         redeploy)   cmd_redeploy "$1" "$2" ;;
+        create)     cmd_create "$@" ;;
+        delete|rm)  cmd_delete_stack "$1" "$2" ;;
+        start-stack) cmd_start_stack "$1" "$2" ;;
+        stop-stack) cmd_stop_stack "$1" "$2" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
