@@ -268,6 +268,260 @@ for n in nodes:
 "
 }
 
+# ── Commands: Node Management ─────────────────────────────────
+
+cmd_node_create() {
+    local name="" fqdn="" scheme="https" memory="" disk="" daemon_port="8443" sftp_port="2022"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)        name="$2"; shift 2 ;;
+            --fqdn)        fqdn="$2"; shift 2 ;;
+            --scheme)      scheme="$2"; shift 2 ;;
+            --memory)      memory="$2"; shift 2 ;;
+            --disk)        disk="$2"; shift 2 ;;
+            --daemon-port) daemon_port="$2"; shift 2 ;;
+            --sftp-port)   sftp_port="$2"; shift 2 ;;
+            *)             die "Unknown option: $1" ;;
+        esac
+    done
+
+    [[ -z "$name" ]] && die "Usage: pelican node-create --name <name> --fqdn <fqdn> --memory <MB> --disk <MB> [--scheme https] [--daemon-port 8443] [--sftp-port 2022]"
+    [[ -z "$fqdn" ]] && die "--fqdn required"
+    [[ -z "$memory" ]] && die "--memory required (in MB)"
+    [[ -z "$disk" ]] && die "--disk required (in MB)"
+
+    info "Creating node '$name' ($fqdn)..."
+    local result
+    result=$(pel_post "/application/nodes" -d "$(python3 -c "
+import json
+print(json.dumps({
+    'name': '$name',
+    'fqdn': '$fqdn',
+    'scheme': '$scheme',
+    'memory': int('$memory'),
+    'memory_overallocate': 0,
+    'disk': int('$disk'),
+    'disk_overallocate': 0,
+    'daemon_listen': int('$daemon_port'),
+    'daemon_sftp': int('$sftp_port'),
+    'daemon_base': '/var/lib/pelican/volumes'
+}))
+")")
+
+    if [[ -z "$result" ]]; then
+        die "Failed to create node. Check API response."
+    fi
+
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+a = d.get('attributes', d)
+print(f'  Node created!')
+print(f'  ID:     {a.get(\"id\", \"?\")}')
+print(f'  Name:   {a.get(\"name\", \"?\")}')
+print(f'  FQDN:   {a.get(\"fqdn\", \"?\")}')
+print(f'  Memory: {a.get(\"memory\", 0)}MB')
+print(f'  Disk:   {a.get(\"disk\", 0)}MB')
+print(f'  Daemon: {a.get(\"scheme\",\"https\")}://{a.get(\"fqdn\",\"?\")}:{a.get(\"daemon_listen\",8443)}')
+print()
+print('  Next: Configure Wings on the node server with:')
+print(f'    wings configure --panel-url {\"$PELICAN_URL\"} --token <TOKEN_FROM_PANEL> --node {a.get(\"id\",\"?\")}')
+"
+}
+
+cmd_node_delete() {
+    local node_id="$1"
+    [[ -z "$node_id" ]] && die "Usage: pelican node-delete <node_id>"
+    confirm_action "Delete node $node_id?"
+    pel_delete "/application/nodes/$node_id" > /dev/null
+    ok "Node $node_id deleted."
+}
+
+# ── Commands: Server Management ───────────────────────────────
+
+cmd_server_create() {
+    local name="" user="" egg="" docker_image="" memory="" disk="" cpu="" port=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)    name="$2"; shift 2 ;;
+            --user)    user="$2"; shift 2 ;;
+            --egg)     egg="$2"; shift 2 ;;
+            --image)   docker_image="$2"; shift 2 ;;
+            --memory)  memory="$2"; shift 2 ;;
+            --disk)    disk="$2"; shift 2 ;;
+            --cpu)     cpu="$2"; shift 2 ;;
+            --port)    port="$2"; shift 2 ;;
+            *)         die "Unknown option: $1" ;;
+        esac
+    done
+
+    [[ -z "$name" ]] && die "Usage: pelican server-create --name <name> --user <user_id> --egg <egg_id> --memory <MB> --disk <MB> --cpu <percent> [--image <docker_image>] [--port <allocation_id>]"
+    [[ -z "$user" ]] && die "--user required (user ID)"
+    [[ -z "$egg" ]] && die "--egg required (egg ID)"
+    [[ -z "$memory" ]] && die "--memory required (in MB)"
+    [[ -z "$disk" ]] && die "--disk required (in MB)"
+    [[ -z "$cpu" ]] && die "--cpu required (percent, e.g. 100)"
+
+    local payload
+    payload=$(python3 -c "
+import json
+d = {
+    'name': '$name',
+    'user': int('$user'),
+    'egg': int('$egg'),
+    'limits': {
+        'memory': int('$memory'),
+        'swap': 0,
+        'disk': int('$disk'),
+        'io': 500,
+        'cpu': int('$cpu')
+    },
+    'feature_limits': {
+        'databases': 2,
+        'backups': 3,
+        'allocations': 1
+    },
+    'start_on_completion': False
+}
+if '$docker_image':
+    d['docker_image'] = '$docker_image'
+if '$port':
+    d['allocation'] = {'default': int('$port')}
+print(json.dumps(d))
+")
+
+    info "Creating server '$name'..."
+    local result
+    result=$(pel_post "/application/servers" -d "$payload")
+
+    if [[ -z "$result" ]]; then
+        die "Failed to create server. Check API response."
+    fi
+
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+a = d.get('attributes', d)
+lim = a.get('limits', {})
+print(f'  Server created!')
+print(f'  ID:         {a.get(\"id\", \"?\")}')
+print(f'  UUID:       {a.get(\"uuid\", \"?\")}')
+print(f'  Identifier: {a.get(\"identifier\", \"?\")}')
+print(f'  Name:       {a.get(\"name\", \"?\")}')
+print(f'  CPU:        {lim.get(\"cpu\", 0)}%')
+print(f'  Memory:     {lim.get(\"memory\", 0)}MB')
+print(f'  Disk:       {lim.get(\"disk\", 0)}MB')
+"
+}
+
+cmd_server_delete() {
+    local server_id="$1"
+    [[ -z "$server_id" ]] && die "Usage: pelican server-delete <server_id>"
+    confirm_action "Delete server $server_id? This will destroy all data!"
+    pel_delete "/application/servers/$server_id" > /dev/null
+    ok "Server $server_id deleted."
+}
+
+cmd_server_suspend() {
+    local server_id="$1"
+    [[ -z "$server_id" ]] && die "Usage: pelican suspend <server_id>"
+    pel_post "/application/servers/$server_id/suspend" > /dev/null
+    ok "Server $server_id suspended."
+}
+
+cmd_server_unsuspend() {
+    local server_id="$1"
+    [[ -z "$server_id" ]] && die "Usage: pelican unsuspend <server_id>"
+    pel_post "/application/servers/$server_id/unsuspend" > /dev/null
+    ok "Server $server_id unsuspended."
+}
+
+cmd_server_reinstall() {
+    local server_id="$1"
+    [[ -z "$server_id" ]] && die "Usage: pelican reinstall <server_id>"
+    confirm_action "Reinstall server $server_id? This will reset all server files!"
+    pel_post "/application/servers/$server_id/reinstall" > /dev/null
+    ok "Server $server_id reinstalling..."
+}
+
+cmd_server_update_build() {
+    local server_id="$1"
+    shift || die "Usage: pelican update-build <server_id> --memory <MB> --disk <MB> --cpu <pct>"
+
+    local memory="" disk="" cpu=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --memory) memory="$2"; shift 2 ;;
+            --disk)   disk="$2"; shift 2 ;;
+            --cpu)    cpu="$2"; shift 2 ;;
+            *)        die "Unknown option: $1" ;;
+        esac
+    done
+
+    local payload
+    payload=$(python3 -c "
+import json
+d = {}
+if '$memory': d['memory'] = int('$memory')
+if '$disk': d['disk'] = int('$disk')
+if '$cpu': d['cpu'] = int('$cpu')
+if not d:
+    print('{}')
+else:
+    print(json.dumps(d))
+")
+
+    [[ "$payload" == "{}" ]] && die "Specify at least one of: --memory, --disk, --cpu"
+
+    info "Updating build for server $server_id..."
+    pel_patch "/application/servers/$server_id/build" -d "$payload" > /dev/null
+    ok "Server $server_id build updated."
+}
+
+# ── Commands: Allocation Management ───────────────────────────
+
+cmd_allocation_create() {
+    local node_id="" ip="" ports=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --node) node_id="$2"; shift 2 ;;
+            --ip)   ip="$2"; shift 2 ;;
+            --ports) ports="$2"; shift 2 ;;
+            *)      die "Unknown option: $1" ;;
+        esac
+    done
+
+    [[ -z "$node_id" ]] && die "Usage: pelican alloc-create --node <id> --ip <ip> --ports <port_or_range>"
+    [[ -z "$ip" ]] && die "--ip required"
+    [[ -z "$ports" ]] && die "--ports required (e.g. 25565 or 25565-25570)"
+
+    # Parse ports into array
+    local ports_json
+    ports_json=$(python3 -c "
+import json
+ports = '$ports'
+if '-' in ports:
+    start, end = ports.split('-')
+    print(json.dumps([str(p) for p in range(int(start), int(end)+1)]))
+else:
+    print(json.dumps([ports]))
+")
+
+    pel_post "/application/nodes/$node_id/allocations" -d "{\"ip\":\"$ip\",\"ports\":$ports_json}" > /dev/null
+    ok "Allocations created on node $node_id: $ip:$ports"
+}
+
+cmd_allocation_delete() {
+    local node_id="$1" alloc_id="$2"
+    [[ -z "$node_id" || -z "$alloc_id" ]] && die "Usage: pelican alloc-delete <node_id> <allocation_id>"
+    confirm_action "Delete allocation $alloc_id from node $node_id?"
+    pel_delete "/application/nodes/$node_id/allocations/$alloc_id" > /dev/null
+    ok "Allocation $alloc_id deleted."
+}
+
 # ── Commands: Users ───────────────────────────────────────────
 
 cmd_users() {
@@ -472,14 +726,33 @@ USAGE:
 
 DASHBOARD:
   status                            Panel overview — nodes, servers
-  nodes                             List all nodes
   users                             List all users
   eggs                              List nests and eggs (server templates)
+
+NODES:
+  nodes                             List all nodes
+  node-create --name N --fqdn F --memory M --disk D
+                                    Create a new node
+  node-delete <node_id>             Delete a node (confirm)
+
+ALLOCATIONS:
+  allocations <node_id>             List port allocations for a node
+  alloc-create --node N --ip I --ports P
+                                    Create allocations (port or range)
+  alloc-delete <node_id> <alloc_id> Delete an allocation (confirm)
 
 SERVERS:
   servers                           List all servers
   server <id|uuid>                  Detailed server info
+  server-create --name N --user U --egg E --memory M --disk D --cpu C
+                                    Create a new server
+  server-delete <server_id>         Delete a server (confirm)
   resources <identifier>            Live resource usage (CPU, memory, disk, network)
+  update-build <id> [--memory M] [--disk D] [--cpu C]
+                                    Update server resource limits
+  suspend <server_id>               Suspend a server
+  unsuspend <server_id>             Unsuspend a server
+  reinstall <server_id>             Reinstall a server (confirm)
 
 POWER:
   start <identifier>                Start server
@@ -499,18 +772,16 @@ BACKUPS:
 
 ACTIVITY:
   activity <identifier>             Server activity log
-  allocations <node_id>             List port allocations for a node
 
 EXAMPLES:
   pelican status
+  pelican node-create --name MediaVM --fqdn 10.0.0.153 --memory 8192 --disk 102400
+  pelican alloc-create --node 1 --ip 0.0.0.0 --ports 25565
+  pelican server-create --name Minecraft --user 1 --egg 1 --memory 4096 --disk 20480 --cpu 200
   pelican servers
-  pelican server 1
-  pelican resources abc123de
   pelican start abc123de
   pelican command abc123de "say Hello everyone!"
-  pelican files abc123de /
-  pelican backups abc123de
-  pelican backup-create abc123de
+  pelican update-build 1 --memory 8192 --cpu 300
   pelican eggs
 
 TOKEN:
@@ -534,9 +805,19 @@ main() {
         server|info)            cmd_server "$1" ;;
         resources|stats|res)    cmd_resources "$1" ;;
         nodes)                  cmd_nodes ;;
+        node-create)            cmd_node_create "$@" ;;
+        node-delete)            cmd_node_delete "$1" ;;
         users)                  cmd_users ;;
         eggs|nests)             cmd_eggs ;;
         allocations|allocs)     cmd_allocations "$1" ;;
+        alloc-create)           cmd_allocation_create "$@" ;;
+        alloc-delete)           cmd_allocation_delete "$1" "$2" ;;
+        server-create)          cmd_server_create "$@" ;;
+        server-delete)          cmd_server_delete "$1" ;;
+        suspend)                cmd_server_suspend "$1" ;;
+        unsuspend)              cmd_server_unsuspend "$1" ;;
+        reinstall)              cmd_server_reinstall "$1" ;;
+        update-build)           cmd_server_update_build "$@" ;;
         start)                  cmd_power "$1" start ;;
         stop)                   cmd_power "$1" stop ;;
         restart)                cmd_power "$1" restart ;;
