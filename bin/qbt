@@ -395,6 +395,97 @@ for i, f in enumerate(data):
 "
 }
 
+cmd_trackers() {
+    local input="${1:-}"
+    [[ -z "$input" ]] && die "Usage: qbt trackers <hash|name>"
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    header "TORRENT TRACKERS"
+
+    local trackers
+    trackers=$(qbt_get "/api/v2/torrents/trackers?hash=${hash}") || die "Can't get tracker info"
+
+    echo "$trackers" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  (no trackers)')
+    sys.exit()
+
+status_map = {0: 'Disabled', 1: 'Not contacted', 2: 'Working', 3: 'Updating', 4: 'Not working'}
+
+# Skip DHT/PeX/LSD entries (tier = empty or url starts with **)
+real = [t for t in data if not t.get('url', '').startswith('**')]
+if not real:
+    print('  (no external trackers)')
+    sys.exit()
+
+print(f'  {len(real)} tracker(s)\n')
+print(f'  {\"Tier\":<5} {\"Status\":<14} {\"Seeds\":>6} {\"Peers\":>6}  {\"URL\"}')
+print(f'  {\"─\"*5} {\"─\"*14} {\"─\"*6} {\"─\"*6}  {\"─\"*40}')
+
+for t in real:
+    tier = str(t.get('tier', '?'))
+    status = status_map.get(t.get('status', 0), '?')
+    seeds = str(t.get('num_seeds', 0))
+    peers = str(t.get('num_peers', 0))
+    url = t.get('url', '?')
+    msg = t.get('msg', '')
+    print(f'  {tier:<5} {status:<14} {seeds:>6} {peers:>6}  {url}')
+    if msg:
+        print(f'         \033[2m{msg}\033[0m')
+"
+}
+
+cmd_peers() {
+    local input="${1:-}"
+    [[ -z "$input" ]] && die "Usage: qbt peers <hash|name>"
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    header "TORRENT PEERS"
+
+    local peers
+    peers=$(qbt_get "/api/v2/sync/torrentPeers?hash=${hash}") || die "Can't get peer info"
+
+    echo "$peers" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+peer_map = data.get('peers', {})
+if not peer_map:
+    print('  (no connected peers)')
+    sys.exit()
+
+def fmt_speed(b):
+    for u in ['B/s','KB/s','MB/s','GB/s']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB/s'
+
+peers = list(peer_map.values())
+print(f'  {len(peers)} peer(s)\n')
+print(f'  {\"IP\":<22} {\"Client\":<30} {\"Done\":>5} {\"DL Speed\":>10} {\"UP Speed\":>10}  {\"Flags\"}')
+print(f'  {\"─\"*22} {\"─\"*30} {\"─\"*5} {\"─\"*10} {\"─\"*10}  {\"─\"*8}')
+
+for p in sorted(peers, key=lambda x: x.get('progress', 0), reverse=True):
+    ip = p.get('ip', '?')
+    port = p.get('port', '?')
+    addr = f'{ip}:{port}'
+    if len(addr) > 22: addr = addr[:19] + '...'
+    client = p.get('client', '?')[:30]
+    progress = f'{p.get(\"progress\", 0)*100:.0f}%'
+    dl = fmt_speed(p.get('dl_speed', 0))
+    up = fmt_speed(p.get('up_speed', 0))
+    flags = p.get('flags', '')
+    country = p.get('country_code', '')
+    if country: flags = f'{country} {flags}'
+    print(f'  {addr:<22} {client:<30} {progress:>5} {dl:>10} {up:>10}  {flags}')
+"
+}
+
 cmd_help() {
     show_version "qbt"
     cat <<'HELP'
@@ -446,6 +537,8 @@ main() {
         speed)              cmd_speed ;;
         info)               cmd_info "$@" ;;
         files)              cmd_files "$@" ;;
+        trackers)           cmd_trackers "$@" ;;
+        peers)              cmd_peers "$@" ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
