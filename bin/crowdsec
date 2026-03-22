@@ -1,0 +1,495 @@
+#!/usr/bin/env bash
+# crowdsec - CLI for CrowdSec Local API (LAPI)
+# Manage decisions, alerts, bouncers, and security scenarios.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "$SCRIPT_DIR/../lib/common.sh"
+
+# ── Defaults (overridden by config) ─────────────────────────────
+CROWDSEC_URL="${CROWDSEC_URL:-http://10.0.0.153:6060}"
+CROWDSEC_LOGIN="${CROWDSEC_LOGIN:-localhost}"
+CROWDSEC_PASSWORD_SOURCE="${CROWDSEC_PASSWORD_SOURCE:-bw}"
+CROWDSEC_PASSWORD_BW_ENTRY="${CROWDSEC_PASSWORD_BW_ENTRY:-CrowdSec LAPI}"
+
+# ── Token cache ─────────────────────────────────────────────────
+_cs_token=""
+
+get_cs_password() {
+    case "$CROWDSEC_PASSWORD_SOURCE" in
+        bw)    get_secret bw "$CROWDSEC_PASSWORD_BW_ENTRY" ;;
+        env)   get_secret env "" "CROWDSEC_PASSWORD" ;;
+        value) echo "$CROWDSEC_PASSWORD_BW_ENTRY" ;;
+        *)     die "Unknown CROWDSEC_PASSWORD_SOURCE: $CROWDSEC_PASSWORD_SOURCE" ;;
+    esac
+}
+
+cs_login() {
+    local password
+    password=$(get_cs_password) || die "Can't get CrowdSec LAPI password"
+
+    _cs_token=$(curl -sf -X POST "${CROWDSEC_URL}/v1/watchers/login" \
+        -H "Content-Type: application/json" \
+        -d "{\"machine_id\":\"${CROWDSEC_LOGIN}\",\"password\":\"${password}\"}" \
+        | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+
+    if [[ -z "$_cs_token" ]]; then
+        die "CrowdSec LAPI auth failed at ${CROWDSEC_URL}"
+    fi
+}
+
+cs_api() {
+    local method="$1" path="$2"
+    shift 2
+
+    [[ -z "$_cs_token" ]] && cs_login
+
+    curl -sf -X "$method" "${CROWDSEC_URL}${path}" \
+        -H "Authorization: Bearer $_cs_token" \
+        -H "Content-Type: application/json" \
+        "$@" 2>/dev/null
+}
+
+# ── Commands ───────────────────────────────────────────────────
+
+cmd_status() {
+    header "CROWDSEC STATUS"
+
+    echo -e "  URL:      ${DIM}${CROWDSEC_URL}${RESET}"
+    echo ""
+
+    # Test LAPI connectivity
+    cs_login
+    ok "  LAPI:     Connected"
+    echo ""
+
+    # Get summary from alerts (decisions endpoint requires bouncer token)
+    local alerts
+    alerts=$(cs_api GET "/v1/alerts?limit=50" 2>/dev/null)
+
+    echo "$alerts" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    if not d:
+        print('  Alerts:    None')
+        print('  Decisions: 0 active')
+        sys.exit()
+    # Count decisions across all alerts
+    all_decisions = []
+    for a in d:
+        for dec in (a.get('decisions') or []):
+            all_decisions.append(dec)
+    bans = sum(1 for x in all_decisions if x.get('type') == 'ban')
+    captchas = sum(1 for x in all_decisions if x.get('type') == 'captcha')
+    other = len(all_decisions) - bans - captchas
+    print(f'  Decisions: {len(all_decisions)} active ({bans} bans, {captchas} captchas, {other} other)')
+    latest = d[0].get('created_at','?')[:19].replace('T',' ')
+    print(f'  Alerts:    {len(d)} (latest: {latest})')
+except:
+    print('  Alerts:    Error reading data')
+"
+}
+
+cmd_decisions() {
+    header "ACTIVE DECISIONS"
+
+    # Decisions are embedded in alerts (direct /v1/decisions requires bouncer token)
+    local data
+    data=$(cs_api GET "/v1/alerts?has_active_decision=true") || die "Failed to query decisions"
+
+    echo "$data" | python3 -c "
+import sys, json
+alerts = json.load(sys.stdin)
+if not alerts:
+    print('  No active decisions.')
+    sys.exit()
+# Flatten decisions from all alerts
+decisions = []
+for a in alerts:
+    scenario = a.get('scenario', '?')
+    for dec in (a.get('decisions') or []):
+        dec['_scenario'] = scenario
+        decisions.append(dec)
+if not decisions:
+    print('  No active decisions.')
+    sys.exit()
+print(f'  {\"IP/Range\":<20} {\"Type\":<10} {\"Origin\":<8} {\"Reason\":<35} {\"Duration\"}')
+print(f'  {\"─\"*19} {\"─\"*9} {\"─\"*7} {\"─\"*34} {\"─\"*15}')
+for dec in decisions[:50]:
+    ip = dec.get('value', '?')
+    dtype = dec.get('type', '?')
+    origin = dec.get('origin', '?')
+    reason = dec.get('scenario', dec.get('_scenario', '?'))
+    if len(reason) > 34:
+        reason = reason[:31] + '...'
+    duration = dec.get('duration', '?')
+    print(f'  {ip:<20} {dtype:<10} {origin:<8} {reason:<35} {duration}')
+if len(decisions) > 50:
+    print(f'  ... and {len(decisions)-50} more')
+print(f'\n  Total: {len(decisions)} active decisions')
+"
+}
+
+cmd_alerts() {
+    local limit="${1:-20}"
+    header "RECENT ALERTS"
+
+    local data
+    data=$(cs_api GET "/v1/alerts?limit=${limit}") || die "Failed to query alerts"
+
+    echo "$data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+if not d:
+    print('  No alerts.')
+    sys.exit()
+print(f'  {\"ID\":<8} {\"Time\":<20} {\"Source\":<18} {\"Scenario\"}')
+print(f'  {\"─\"*7} {\"─\"*19} {\"─\"*17} {\"─\"*40}')
+for a in d:
+    aid = str(a.get('id', '?'))
+    created = a.get('created_at','?')[:19].replace('T',' ')
+    src = a.get('source',{})
+    ip = src.get('ip', '?') if src else '?'
+    scenario = a.get('scenario', '?')
+    print(f'  {aid:<8} {created:<20} {ip:<18} {scenario}')
+print(f'\n  Total: {len(d)} alerts (showing up to {$limit})')
+"
+}
+
+cmd_alert() {
+    [[ -z "$1" ]] && die "Usage: crowdsec alert <id>"
+    local alert_id="$1"
+    header "ALERT: ${alert_id}"
+
+    local data
+    data=$(cs_api GET "/v1/alerts/${alert_id}") || die "Alert not found: ${alert_id}"
+
+    echo "$data" | python3 -c "
+import sys, json
+a = json.load(sys.stdin)
+src = a.get('source', {}) or {}
+print(f'  ID:         {a.get(\"id\", \"?\")}')
+print(f'  Created:    {a.get(\"created_at\", \"?\")[:19].replace(\"T\", \" \")}')
+print(f'  Scenario:   {a.get(\"scenario\", \"?\")}')
+print(f'  Source IP:  {src.get(\"ip\", \"?\")}')
+print(f'  Source CN:  {src.get(\"cn\", \"?\")}')
+print(f'  Source AS:  {src.get(\"as_name\", \"?\")}')
+print(f'  Scope:      {src.get(\"scope\", \"?\")}')
+print(f'  Message:    {a.get(\"message\", \"?\")}')
+
+decisions = a.get('decisions', []) or []
+if decisions:
+    print(f'\n  Decisions ({len(decisions)}):')
+    for d in decisions:
+        print(f'    {d.get(\"value\",\"?\"):<20} {d.get(\"type\",\"?\"):<10} duration={d.get(\"duration\",\"?\")}')
+
+events = a.get('events', []) or []
+if events:
+    print(f'\n  Events ({len(events)}):')
+    for e in events[:10]:
+        ts = e.get('timestamp','?')[:19].replace('T',' ')
+        meta = {m.get('key',''): m.get('value','') for m in (e.get('meta',[]) or [])}
+        src_ip = meta.get('source_ip', '?')
+        print(f'    {ts}  {src_ip}')
+    if len(events) > 10:
+        print(f'    ... and {len(events)-10} more')
+"
+}
+
+cmd_ban() {
+    [[ -z "$1" ]] && die "Usage: crowdsec ban <ip> [duration] [reason]"
+    local ip="$1"
+    local duration="${2:-24h}"
+    local reason="${3:-manual ban via CLI}"
+
+    confirm_action "Ban IP '${ip}' for ${duration}?"
+
+    # Create alert with decision (watcher API — POST /v1/alerts)
+    local response
+    response=$(cs_api POST "/v1/alerts" -d "$(IP="$ip" DURATION="$duration" REASON="$reason" python3 -c "
+import os, json
+print(json.dumps([{
+    'scenario': os.environ['REASON'],
+    'scenario_hash': '',
+    'scenario_version': '',
+    'message': f'manual ban: {os.environ[\"IP\"]}',
+    'events': [],
+    'events_count': 1,
+    'capacity': 0,
+    'leakspeed': '0',
+    'simulated': False,
+    'source': {
+        'scope': 'ip',
+        'value': os.environ['IP'],
+        'ip': os.environ['IP']
+    },
+    'start_at': '2021-01-01T00:00:00Z',
+    'stop_at': '2021-01-01T00:00:00Z',
+    'decisions': [{
+        'duration': os.environ['DURATION'],
+        'origin': 'cscli',
+        'scenario': os.environ['REASON'],
+        'scope': 'ip',
+        'type': 'ban',
+        'value': os.environ['IP']
+    }]
+}]))
+")") || die "Failed to create ban decision"
+
+    ok "  Banned ${ip} for ${duration}: ${reason}"
+}
+
+cmd_unban() {
+    [[ -z "$1" ]] && die "Usage: crowdsec unban <ip>"
+    local ip="$1"
+
+    confirm_action "Remove all decisions for IP '${ip}'?"
+
+    # Delete via alert-based decision endpoint
+    local alert_id
+    alert_id=$(cs_api GET "/v1/alerts?ip=${ip}&has_active_decision=true" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+if d:
+    print(d[0].get('id',''))
+" 2>/dev/null)
+
+    if [[ -n "$alert_id" ]]; then
+        cs_api DELETE "/v1/alerts/${alert_id}" || die "Failed to remove alert for ${ip}"
+        ok "  Removed decisions for ${ip} (alert ${alert_id})"
+    else
+        warn "  No active decisions found for ${ip}"
+    fi
+}
+
+cmd_bouncers() {
+    header "BOUNCERS"
+
+    local data
+    data=$(ssh -o ConnectTimeout=5 "${CROWDSEC_SSH_HOST:-plex-vm}" \
+        "docker exec ${CROWDSEC_CONTAINER:-pelican-wings-crowdsec-engine-1} cscli bouncers list -o json" 2>/dev/null) || {
+        die "Failed to query bouncers (needs SSH to ${CROWDSEC_SSH_HOST:-plex-vm})"
+    }
+
+    echo "$data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+if not d:
+    print('  No bouncers registered.')
+    sys.exit()
+print(f'  {\"Name\":<30} {\"Type\":<30} {\"Last Pull\"}')
+print(f'  {\"─\"*29} {\"─\"*29} {\"─\"*20}')
+for b in d:
+    name = b.get('name', '?')
+    btype = b.get('type', '?')
+    pull = b.get('last_pull', 'never')
+    if pull and pull != 'never':
+        pull = pull[:19].replace('T', ' ')
+    print(f'  {name:<30} {btype:<30} {pull}')
+print(f'\n  Total: {len(d)} bouncers')
+"
+}
+
+cmd_machines() {
+    header "MACHINES"
+
+    local data
+    data=$(cs_api GET "/v1/machines") || {
+        warn "  Could not list machines (may require admin privileges)"
+        return
+    }
+
+    echo "$data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+if not d:
+    print('  No machines registered.')
+    sys.exit()
+print(f'  {\"Machine ID\":<25} {\"Status\":<12} {\"Last Push\":<20} {\"Version\"}')
+print(f'  {\"─\"*24} {\"─\"*11} {\"─\"*19} {\"─\"*15}')
+for m in d:
+    mid = m.get('machineId', '?')
+    status = 'validated' if m.get('isValidated') else 'pending'
+    push = m.get('last_push', 'never')
+    if push and push != 'never':
+        push = push[:19].replace('T', ' ')
+    ver = m.get('version', '?')
+    print(f'  {mid:<25} {status:<12} {push:<20} {ver}')
+print(f'\n  Total: {len(d)} machines')
+"
+}
+
+cmd_scenarios() {
+    header "INSTALLED SCENARIOS"
+
+    # Use cscli inside the container for this — LAPI doesn't expose scenario list
+    local data
+    data=$(ssh -o ConnectTimeout=5 "${CROWDSEC_SSH_HOST:-plex-vm}" \
+        "docker exec ${CROWDSEC_CONTAINER:-pelican-wings-crowdsec-engine-1} cscli scenarios list -o json" 2>/dev/null) || {
+        die "Failed to query scenarios (needs SSH to ${CROWDSEC_SSH_HOST:-plex-vm})"
+    }
+
+    echo "$data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+scenarios = d.get('scenarios', d) if isinstance(d, dict) else d
+if not scenarios:
+    print('  No scenarios installed.')
+    sys.exit()
+print(f'  {\"Name\":<45} {\"Status\":<12} {\"Version\"}')
+print(f'  {\"─\"*44} {\"─\"*11} {\"─\"*10}')
+for s in scenarios:
+    name = s.get('name', '?')
+    status = s.get('status', '?')
+    ver = s.get('local_version', '?')
+    print(f'  {name:<45} {status:<12} {ver}')
+print(f'\n  Total: {len(scenarios)} scenarios')
+"
+}
+
+cmd_collections() {
+    header "INSTALLED COLLECTIONS"
+
+    local data
+    data=$(ssh -o ConnectTimeout=5 "${CROWDSEC_SSH_HOST:-plex-vm}" \
+        "docker exec ${CROWDSEC_CONTAINER:-pelican-wings-crowdsec-engine-1} cscli collections list -o json" 2>/dev/null) || {
+        die "Failed to query collections (needs SSH to ${CROWDSEC_SSH_HOST:-plex-vm})"
+    }
+
+    echo "$data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+cols = d.get('collections', d) if isinstance(d, dict) else d
+if not cols:
+    print('  No collections installed.')
+    sys.exit()
+print(f'  {\"Name\":<45} {\"Status\":<12} {\"Version\"}')
+print(f'  {\"─\"*44} {\"─\"*11} {\"─\"*10}')
+for c in cols:
+    name = c.get('name', '?')
+    status = c.get('status', '?')
+    ver = c.get('local_version', '?')
+    print(f'  {name:<45} {status:<12} {ver}')
+print(f'\n  Total: {len(cols)} collections')
+"
+}
+
+cmd_metrics() {
+    header "CROWDSEC METRICS"
+
+    local data
+    data=$(ssh -o ConnectTimeout=5 "${CROWDSEC_SSH_HOST:-plex-vm}" \
+        "docker exec ${CROWDSEC_CONTAINER:-pelican-wings-crowdsec-engine-1} cscli metrics show -o json" 2>/dev/null) || {
+        die "Failed to query metrics (needs SSH to ${CROWDSEC_SSH_HOST:-plex-vm})"
+    }
+
+    echo "$data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+
+# Acquisition metrics
+acq = d.get('acquisition', {})
+if acq:
+    print('  ACQUISITION:')
+    for source, metrics in acq.items() if isinstance(acq, dict) else []:
+        reads = sum(v for v in metrics.values() if isinstance(v, (int, float)))
+        print(f'    {source}: {reads} events')
+    print()
+
+# Local API metrics
+lapi = d.get('local_api', {})
+if lapi:
+    print('  LOCAL API:')
+    if isinstance(lapi, dict):
+        for route, methods in lapi.items():
+            if isinstance(methods, dict):
+                for method, count in methods.items():
+                    print(f'    {method:>6} {route}: {count}')
+    print()
+
+# Bouncer metrics
+bouncers = d.get('bouncers', {})
+if bouncers:
+    print('  BOUNCERS:')
+    if isinstance(bouncers, dict):
+        for name, metrics in bouncers.items():
+            print(f'    {name}: {metrics}')
+    print()
+
+# Decision stats
+alerts_m = d.get('alerts', {})
+decisions_m = d.get('decisions', {})
+print(f'  Alerts count:    {len(alerts_m) if isinstance(alerts_m, dict) else alerts_m}')
+print(f'  Decisions count: {len(decisions_m) if isinstance(decisions_m, dict) else decisions_m}')
+"
+}
+
+cmd_help() {
+    show_version "crowdsec"
+    cat <<'HELP'
+
+CLI for CrowdSec security engine (Local API).
+
+USAGE:
+  crowdsec <command> [args...]
+
+STATUS:
+  status                          LAPI connection, decision/alert summary
+
+DECISIONS:
+  decisions                       List all active decisions (bans, captchas)
+  ban <ip> [duration] [reason]    Manually ban an IP (default: 24h)
+  unban <ip>                      Remove all decisions for an IP
+
+ALERTS:
+  alerts [limit]                  List recent alerts (default: 20)
+  alert <id>                      Show detailed alert info
+
+INFRASTRUCTURE:
+  bouncers                        List registered bouncers
+  machines                        List registered machines
+
+CONFIGURATION:
+  scenarios                       List installed detection scenarios
+  collections                     List installed collections
+
+MONITORING:
+  metrics                         Show acquisition, API, and bouncer metrics
+
+EXAMPLES:
+  crowdsec status
+  crowdsec decisions
+  crowdsec ban 1.2.3.4 48h "ssh brute force"
+  crowdsec unban 1.2.3.4
+  crowdsec alerts 50
+  crowdsec alert 42
+  crowdsec bouncers
+  crowdsec scenarios
+  crowdsec metrics
+HELP
+}
+
+# ── Main ─────────────────────────────────────────────────────────
+
+main() {
+    local cmd="${1:-help}"
+    shift 2>/dev/null || true
+
+    case "$cmd" in
+        status)                   cmd_status ;;
+        decisions|bans)           cmd_decisions ;;
+        ban)                      cmd_ban "$@" ;;
+        unban)                    cmd_unban "$1" ;;
+        alerts)                   cmd_alerts "$1" ;;
+        alert)                    cmd_alert "$1" ;;
+        bouncers)                 cmd_bouncers ;;
+        machines)                 cmd_machines ;;
+        scenarios)                cmd_scenarios ;;
+        collections)              cmd_collections ;;
+        metrics)                  cmd_metrics ;;
+        help|--help|-h)           cmd_help ;;
+        *)                        die "Unknown command: $cmd (try 'crowdsec help')" ;;
+    esac
+}
+
+main "$@"
