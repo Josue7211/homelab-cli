@@ -94,12 +94,45 @@ PYEOF
 }
 
 cmd_crawl() {
-    local url="$1" limit="${2:-10}"
+    local url="" limit="10" depth="" include="" exclude=""
+
+    [[ $# -lt 1 ]] && die "Usage: firecrawl crawl <url> [limit] [--depth N] [--include PATTERN] [--exclude PATTERN]"
+    url="$1"; shift
+
+    # Parse remaining: positional (limit) then flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --depth)   depth="${2:-}"; shift 2 ;;
+            --include) include="${2:-}"; shift 2 ;;
+            --exclude) exclude="${2:-}"; shift 2 ;;
+            *)
+                if [[ "$limit" == "10" && ! "$1" =~ ^-- ]]; then
+                    limit="$1"; shift
+                else
+                    die "Unknown option: $1"
+                fi
+                ;;
+        esac
+    done
+
     local payload
-    payload=$(URL="$url" LIMIT="$limit" python3 -c "
+    payload=$(URL="$url" LIMIT="$limit" DEPTH="$depth" INCLUDE="$include" EXCLUDE="$exclude" python3 -c "
 import os, json
-print(json.dumps({'url': os.environ['URL'], 'limit': int(os.environ['LIMIT']),
-    'scrapeOptions': {'formats': ['markdown']}}))
+payload = {
+    'url': os.environ['URL'],
+    'limit': int(os.environ['LIMIT']),
+    'scrapeOptions': {'formats': ['markdown']}
+}
+depth = os.environ.get('DEPTH', '')
+if depth:
+    payload['maxDepth'] = int(depth)
+inc = os.environ.get('INCLUDE', '')
+if inc:
+    payload['includePaths'] = [inc]
+exc = os.environ.get('EXCLUDE', '')
+if exc:
+    payload['excludePaths'] = [exc]
+print(json.dumps(payload))
 ")
     local response
     response=$(fc_post "/v1/crawl" -d "$payload")
@@ -260,21 +293,35 @@ CLI for self-hosted Firecrawl (Services VM)
 USAGE:
   firecrawl <command> [args...]
 
-COMMANDS:
-  scrape <url> [format]              Scrape a page (markdown|html|links, default: markdown)
-  scrape <url> <format> <outfile>    Scrape and save to file
+SCRAPING:
+  scrape <url> [format] [outfile]    Scrape a page (markdown|html|links, default: markdown)
+    --wait N                         Wait time in ms for JS-heavy pages
+    --headers 'K:V,K2:V2'           Custom request headers
+  batch <url1> [url2 ...]            Batch scrape multiple URLs
+
+CRAWLING:
   crawl <url> [limit]                Crawl a site (default: 10 pages)
+    --depth N                        Max crawl depth (default: 2)
+    --include PATTERN                URL path pattern to include
+    --exclude PATTERN                URL path pattern to exclude
   status <job_id>                    Check crawl job status and results
+
+DISCOVERY:
   map <url>                          Discover all URLs on a site
   search <query> [limit]             Search the web (default: 5 results)
   extract <url> <prompt>             Extract structured data with a prompt
+
+SYSTEM:
   health                             Check Firecrawl status
   help                               Show this help
 
 EXAMPLES:
   firecrawl scrape https://example.com
   firecrawl scrape https://docs.laravel.com/auth markdown auth.md
-  firecrawl crawl https://docs.laravel.com 20
+  firecrawl scrape https://example.com --wait 5000 --headers 'Accept:text/html'
+  firecrawl batch https://example.com https://example.org
+  firecrawl crawl https://docs.laravel.com 20 --depth 3
+  firecrawl crawl https://example.com --include '/docs/*' --exclude '/blog/*'
   firecrawl status abc-123-def
   firecrawl map https://spotify.com
   firecrawl search "spotify wrapped design patterns"
@@ -301,8 +348,8 @@ main() {
             cmd_batch "$@"
             ;;
         crawl)
-            [[ $# -lt 1 ]] && { echo "Usage: firecrawl crawl <url> [limit]"; exit 1; }
-            cmd_crawl "$1" "${2:-10}"
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl crawl <url> [limit] [--depth N] [--include PATTERN] [--exclude PATTERN]"; exit 1; }
+            cmd_crawl "$@"
             ;;
         status)
             [[ $# -lt 1 ]] && { echo "Usage: firecrawl status <job_id>"; exit 1; }
