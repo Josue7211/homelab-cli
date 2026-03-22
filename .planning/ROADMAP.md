@@ -182,10 +182,11 @@ Plans:
   1. User can view current VPN provider info, DNS config, and port forward status
   2. User can list available servers/regions and switch to a different server
   3. User can run a DNS leak test to verify VPN security
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — VPN info commands (provider, servers, dns, ports)
+- [ ] 11-02-PLAN.md — Server switching (switch) + leak testing (leak-test) + help text update
 
 ### Phase 12: Overseerr
 **Goal**: Users can manage requests in bulk, view users/quotas, and inspect service configuration from the command line
@@ -264,7 +265,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
-| 11. Gluetun | 0/? | Not started | - |
+| 11. Gluetun | 0/2 | Planning complete | - |
 | 12. Overseerr | 0/? | Not started | - |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
