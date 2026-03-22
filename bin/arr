@@ -1008,6 +1008,75 @@ print(json.dumps({'ids': ids}))
     ok "  Cleared $count items from $app blocklist."
 }
 
+cmd_backup() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr backup <sonarr|radarr|lidarr|prowlarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr|prowlarr) ;;
+        *) die "Backup not supported for $app" ;;
+    esac
+
+    local payload='{"name":"Backup"}'
+
+    info "Triggering backup on $app..."
+    arr_api "$app" POST "/command" "$payload" > /dev/null || die "Failed to trigger backup on $app"
+    ok "  Backup triggered on $app."
+}
+
+cmd_logs() {
+    local app="${1:-}" count="${2:-25}"
+    [[ -z "$app" ]] && die "Usage: arr logs <sonarr|radarr|lidarr|prowlarr> [count]"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr|prowlarr) ;;
+        *) die "Logs not supported for $app" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "/log?page=1&pageSize=${count}&sortKey=time&sortDirection=descending") || die "Can't connect to $app"
+
+    echo -e "  ${BOLD}${app}${RESET} — recent logs (${count}):"
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+records = data.get('records', [])
+if not records:
+    print('    (no logs)')
+    sys.exit()
+for r in records:
+    time = r.get('time', '?')[:19].replace('T', ' ')
+    level = r.get('level', '?')
+    logger = r.get('logger', '?').split('.')[-1][:20]
+    msg = r.get('message', '?')[:80]
+    if level == 'error':
+        color = '\033[31m'
+    elif level == 'warn':
+        color = '\033[33m'
+    else:
+        color = ''
+    reset = '\033[0m' if color else ''
+    print(f'    {color}{time}  {level:<6} {logger:<20} {msg}{reset}')
+" 2>/dev/null
+}
+
+cmd_restart() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr restart <sonarr|radarr|lidarr|prowlarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr|prowlarr) ;;
+        *) die "Restart not supported for $app" ;;
+    esac
+
+    info "Restarting $app..."
+    arr_api "$app" POST "/system/restart" "" > /dev/null || die "Failed to restart $app"
+    ok "  $app restart triggered."
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "arr"
@@ -1053,6 +1122,13 @@ CONFIGURATION:
   tag-add <app> <label>         Create a new tag
   indexers [app]                List indexers (all apps if omitted)
 
+MAINTENANCE:
+  blocklist <app>               Show blocklisted items
+  blocklist-clear <app>         Clear entire blocklist (with confirmation)
+  backup <app>                  Trigger backup
+  logs <app> [count]            View application logs (default: 25)
+  restart <app>                 Restart application
+
 EXAMPLES:
   arr status                    Quick health check of all apps
   arr queue                     Show all download queues
@@ -1076,6 +1152,11 @@ EXAMPLES:
   arr tags lidarr                List Lidarr tags
   arr tag-add sonarr 4k          Create '4k' tag in Sonarr
   arr indexers                   List indexers across all apps
+  arr blocklist sonarr           Show Sonarr blocklist
+  arr blocklist-clear r          Clear Radarr blocklist
+  arr backup lidarr              Trigger Lidarr backup
+  arr logs sonarr 50             Show last 50 Sonarr log entries
+  arr restart prowlarr           Restart Prowlarr
 HELP
 }
 
@@ -1110,6 +1191,9 @@ main() {
         indexers|ix)            cmd_indexers "${1:-}" ;;
         blocklist|bl)           cmd_blocklist "$@" ;;
         blocklist-clear|bl-clear) cmd_blocklist_clear "$@" ;;
+        backup)                 cmd_backup "$@" ;;
+        logs|log)               cmd_logs "$@" ;;
+        restart)                cmd_restart "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             # Try as app shortcut: arr sonarr queue → arr queue sonarr
@@ -1138,6 +1222,9 @@ main() {
                     indexers|ix)   cmd_indexers "$real_app" ;;
                     blocklist|bl)      cmd_blocklist "$real_app" ;;
                     blocklist-clear|bl-clear) cmd_blocklist_clear "$real_app" ;;
+                    backup)        cmd_backup "$real_app" ;;
+                    logs|log)      cmd_logs "$real_app" "${1:-25}" ;;
+                    restart)       cmd_restart "$real_app" ;;
                     *)             die "Unknown subcommand: $subcmd" ;;
                 esac
             else
