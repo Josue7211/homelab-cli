@@ -13,6 +13,76 @@ KOEL_DB_CONTAINER="${KOEL_DB_CONTAINER:-koel-db}"
 KOEL_DB_USER="${KOEL_DB_USER:-koel}"
 KOEL_DB_NAME="${KOEL_DB_NAME:-koel}"
 
+# API auth config
+KOEL_EMAIL="${KOEL_EMAIL:-}"
+KOEL_PASS="${KOEL_PASS:-}"
+KOEL_TOKEN_FILE="${HOME}/.cache/homelab-cli/koel-token"
+
+# ── API Helpers ──────────────────────────────────────────────
+
+koel_login() {
+    [[ -z "$KOEL_EMAIL" || -z "$KOEL_PASS" ]] && \
+        die "Set KOEL_EMAIL and KOEL_PASS in ~/.config/homelab-cli/config"
+
+    local body
+    body=$(KOEL_EMAIL="$KOEL_EMAIL" KOEL_PASS="$KOEL_PASS" python3 -c \
+        "import json,os; print(json.dumps({'email':os.environ['KOEL_EMAIL'],'password':os.environ['KOEL_PASS']}))")
+
+    local resp token
+    resp=$(curl -sf -X POST "${KOEL_URL}/api/me" \
+        -H "Content-Type: application/json" \
+        -d "$body" 2>/dev/null) || die "Koel login failed — check KOEL_URL, KOEL_EMAIL, KOEL_PASS"
+
+    token=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null) \
+        || die "Koel login response missing token"
+
+    mkdir -p "$(dirname "$KOEL_TOKEN_FILE")"
+    echo "$token" > "$KOEL_TOKEN_FILE"
+    echo "$token"
+}
+
+koel_token() {
+    if [[ -f "$KOEL_TOKEN_FILE" ]] && find "$KOEL_TOKEN_FILE" -mmin -1440 2>/dev/null | grep -q .; then
+        cat "$KOEL_TOKEN_FILE"
+        return
+    fi
+    koel_login
+}
+
+koel_api() {
+    local method="$1" path="$2" data="${3:-}"
+    local url="${KOEL_URL}${path}"
+    local token
+    token=$(koel_token)
+
+    case "$method" in
+        GET)
+            curl -sf "$url" \
+                -H "Authorization: Bearer ${token}" \
+                2>/dev/null
+            ;;
+        POST)
+            if [[ -n "$data" ]]; then
+                curl -sf -X POST "$url" \
+                    -H "Authorization: Bearer ${token}" \
+                    -H "Content-Type: application/json" \
+                    -d "$data" \
+                    2>/dev/null
+            else
+                curl -sf -X POST "$url" \
+                    -H "Authorization: Bearer ${token}" \
+                    -H "Content-Type: application/json" \
+                    2>/dev/null
+            fi
+            ;;
+        DELETE)
+            curl -sf -X DELETE "$url" \
+                -H "Authorization: Bearer ${token}" \
+                2>/dev/null
+            ;;
+    esac
+}
+
 # ── Commands ─────────────────────────────────────────────────
 
 cmd_status() {
@@ -105,6 +175,87 @@ cmd_open() {
     xdg-open "$KOEL_URL" 2>/dev/null || echo "Open: $KOEL_URL"
 }
 
+cmd_search() {
+    [[ $# -lt 1 ]] && die "Usage: koel search <query>"
+    local query="$*"
+    local encoded
+    encoded=$(QUERY="$query" python3 -c "import urllib.parse,os; print(urllib.parse.quote(os.environ['QUERY']))")
+
+    local resp
+    resp=$(koel_api GET "/api/search?q=${encoded}") || die "Search failed"
+
+    echo "$resp" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin)
+songs = data.get('songs', [])
+albums = data.get('albums', [])
+artists = data.get('artists', [])
+
+print()
+print('  \033[1mSONGS\033[0m')
+print('  ' + chr(0x2500)*55)
+if songs:
+    for s in songs:
+        dur = s.get('length', 0) or 0
+        m, sec = divmod(int(dur), 60)
+        title = s.get('title', '?')
+        artist = s.get('artist_name', s.get('artist', {}).get('name', '?'))
+        album = s.get('album_name', s.get('album', {}).get('name', '?'))
+        print(f'  {title} | {artist} | {album} | {m}:{sec:02d}')
+else:
+    print('  (none)')
+
+print()
+print('  \033[1mALBUMS\033[0m')
+print('  ' + chr(0x2500)*55)
+if albums:
+    for a in albums:
+        name = a.get('name', '?')
+        artist = a.get('artist_name', a.get('artist', {}).get('name', '?'))
+        year = a.get('created_at', '?')[:4] if a.get('created_at') else '-'
+        print(f'  {name} | {artist} | {year}')
+else:
+    print('  (none)')
+
+print()
+print('  \033[1mARTISTS\033[0m')
+print('  ' + chr(0x2500)*55)
+if artists:
+    for ar in artists:
+        print(f\"  {ar.get('name', '?')}\")
+else:
+    print('  (none)')
+print()
+"
+}
+
+cmd_playlists() {
+    local resp
+    resp=$(koel_api GET "/api/playlist") || die "Failed to fetch playlists"
+
+    echo "$resp" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin)
+print()
+print('  \033[1mPLAYLISTS\033[0m')
+print('  ' + chr(0x2500)*55)
+if not data:
+    print('  (none)')
+else:
+    print('  ID | Name | Songs | Owner')
+    print('  ' + chr(0x2500)*55)
+    for p in data:
+        pid = p.get('id', '?')
+        name = p.get('name', '?')
+        songs = len(p.get('songs', []))
+        owner = p.get('user', {}).get('name', '-') if isinstance(p.get('user'), dict) else p.get('owner', {}).get('name', '-') if isinstance(p.get('owner'), dict) else '-'
+        print(f'  {pid} | {name} | {songs} | {owner}')
+print()
+" | format_table
+}
+
 cmd_help() {
     show_version "koel"
     cat <<'HELP'
@@ -166,6 +317,8 @@ main() {
         env)            cmd_env ;;
         compose)        cmd_compose ;;
         open)           cmd_open ;;
+        search)         cmd_search "$@" ;;
+        playlists)      cmd_playlists ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
