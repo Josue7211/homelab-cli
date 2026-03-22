@@ -241,6 +241,89 @@ for s in sorted(stores, key=lambda x: x.get('storage', '')):
 "
 }
 
+# ── VM management ────────────────────────────────────────────────
+
+cmd_config() {
+    local vmid="$1"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    header "VM $vmid Configuration"
+    pve_api GET "/nodes/${PVE_NODE}/$vm_type/$vmid/config" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)['data']
+
+# Group keys by category
+cpu_keys = ['cores', 'sockets', 'cpu', 'vcpus', 'cpulimit', 'cpuunits', 'numa', 'affinity']
+mem_keys = ['memory', 'balloon', 'shares']
+disk_prefixes = ('scsi', 'virtio', 'ide', 'sata', 'efidisk', 'tpmstate')
+net_prefixes = ('net',)
+groups = {'CPU': {}, 'MEMORY': {}, 'DISK': {}, 'NETWORK': {}, 'OTHER': {}}
+for k, v in sorted(data.items()):
+    if k == 'digest': continue
+    if k in cpu_keys: groups['CPU'][k] = v
+    elif k in mem_keys: groups['MEMORY'][k] = v
+    elif any(k.startswith(p) for p in disk_prefixes): groups['DISK'][k] = v
+    elif any(k.startswith(p) for p in net_prefixes): groups['NETWORK'][k] = v
+    else: groups['OTHER'][k] = v
+
+for group, items in groups.items():
+    if not items: continue
+    print(f'\n  {group}:')
+    for k, v in sorted(items.items()):
+        print(f'    {k:<20} {v}')
+"
+}
+
+cmd_set() {
+    local vmid="$1"; shift
+    [[ $# -eq 0 ]] && die "Usage: homelab set <vmid> KEY=VAL..."
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    local -a data_args=()
+    for kv in "$@"; do
+        [[ "$kv" == *=* ]] || die "Invalid argument '$kv' -- expected KEY=VAL"
+        data_args+=(-d "$kv")
+    done
+    info "Updating VM $vmid config..."
+    pve_api PUT "/nodes/${PVE_NODE}/$vm_type/$vmid/config" "${data_args[@]}" > /dev/null
+    ok "Done."
+}
+
+cmd_resize() {
+    local vmid="$1" disk="$2" size="$3"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    info "Resizing $disk on VM $vmid by $size..."
+    pve_api PUT "/nodes/${PVE_NODE}/$vm_type/$vmid/resize" -d "disk=$disk" -d "size=$size" > /dev/null
+    ok "Done."
+}
+
+cmd_clone() {
+    local vmid="$1"; shift
+    local vm_type name="" target=""
+    vm_type=$(_resolve_vm_type "$vmid")
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name)   name="$2"; shift 2 ;;
+            --target) target="$2"; shift 2 ;;
+            *) die "Unknown option: $1" ;;
+        esac
+    done
+    local -a data_args=(-d "full=1")
+    [[ -n "$name" ]] && data_args+=(-d "name=$name")
+    [[ -n "$target" ]] && data_args+=(-d "target=$target")
+    info "Cloning VM $vmid (full clone)..."
+    local result
+    result=$(pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/clone" "${data_args[@]}")
+    local upid
+    upid=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',''))" 2>/dev/null || echo "")
+    if [[ -n "$upid" ]]; then
+        ok "Clone started. Task: $upid"
+    else
+        ok "Clone started."
+    fi
+}
+
 # ── Portainer shortcuts ──────────────────────────────────────────
 
 cmd_stacks() {
@@ -323,6 +406,12 @@ PROXMOX (VMs):
   snapshots <vmid>                List VM snapshots
   storage                         Show storage pools
 
+VM MANAGEMENT:
+  config <vmid>                   Show VM configuration (grouped)
+  set <vmid> KEY=VAL...           Modify VM configuration
+  resize <vmid> <disk> <size>     Resize disk (e.g., resize 100 scsi0 +10G)
+  clone <vmid> [--name N] [--target NODE]  Full clone a VM
+
 PORTAINER (Docker):
   stacks [instance]               List stacks (services|plex, or both)
   containers [instance]           List containers
@@ -356,6 +445,10 @@ main() {
         reboot)             cmd_reboot "$1" ;;
         snapshots|snaps)    cmd_snapshots "$1" ;;
         storage)            cmd_storage ;;
+        config)             cmd_config "$1" ;;
+        set)                cmd_set "$@" ;;
+        resize)             cmd_resize "$1" "$2" "$3" ;;
+        clone)              cmd_clone "$@" ;;
         stacks)             cmd_stacks "${1:-}" ;;
         containers|ps)      cmd_containers "${1:-}" ;;
         logs)               cmd_logs "$@" ;;
