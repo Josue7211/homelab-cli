@@ -434,6 +434,52 @@ cmd_dhcp_add() {
     [[ $rc -eq 0 ]] && ok "  Added static lease: $hostname ($mac) -> $ip" || die "Failed to add static lease"
 }
 
+cmd_rewrites() {
+    header "DNS REWRITES"
+    ag_api GET /rewrite/list | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No DNS rewrites configured.')
+    sys.exit()
+print(f'  {\"Domain\":<40} {\"Answer\"}')
+print(f'  {\"─\"*39} {\"─\"*30}')
+for r in data:
+    domain = r.get('domain', '?')
+    answer = r.get('answer', '?')
+    print(f'  {domain:<40} {answer}')
+print(f'\n  Total: {len(data)} rewrites')
+"
+}
+
+cmd_rewrite_add() {
+    [[ $# -lt 2 ]] && die "Usage: adguard rewrite-add <domain> <answer>"
+    local domain="$1" answer="$2"
+    ag_api POST /rewrite/add -d "{\"domain\":\"$domain\",\"answer\":\"$answer\"}"
+    local rc=$?
+    [[ $rc -eq 0 ]] && ok "  Added rewrite: $domain -> $answer" || die "Failed to add rewrite"
+}
+
+cmd_rewrite_rm() {
+    [[ $# -lt 1 ]] && die "Usage: adguard rewrite-rm <domain>"
+    local domain="$1"
+    local answer
+    answer=$(ag_api GET /rewrite/list | DOMAIN="$domain" python3 -c "
+import sys, json, os
+domain = os.environ['DOMAIN']
+for r in json.load(sys.stdin):
+    if r.get('domain') == domain:
+        print(r.get('answer', '')); break
+else:
+    print('NOT_FOUND')
+")
+    [[ "$answer" == "NOT_FOUND" ]] && die "No rewrite found for domain: $domain"
+    confirm_action "Remove DNS rewrite '$domain' -> '$answer'?"
+    ag_api POST /rewrite/delete -d "{\"domain\":\"$domain\",\"answer\":\"$answer\"}"
+    local rc=$?
+    [[ $rc -eq 0 ]] && ok "  Removed rewrite: $domain -> $answer" || die "Failed to remove rewrite"
+}
+
 cmd_help() {
     show_version "adguard"
     cat <<'HELP'
@@ -470,6 +516,15 @@ PROTECTION:
   protect-on                      Enable DNS protection
   protect-off                     Disable DNS protection
 
+DHCP:
+  dhcp                            Show DHCP leases (static and dynamic)
+  dhcp-add <ip> <mac> <hostname>  Add a static DHCP lease
+
+DNS REWRITES:
+  rewrites                        List all DNS rewrites
+  rewrite-add <domain> <answer>   Add a DNS rewrite (IP or CNAME)
+  rewrite-rm <domain>             Remove a DNS rewrite (with confirmation)
+
 EXAMPLES:
   adguard status
   adguard filters
@@ -478,6 +533,11 @@ EXAMPLES:
   adguard blocked
   adguard allow api.example.com
   adguard top-blocked
+  adguard dhcp
+  adguard dhcp-add 10.0.0.50 AA:BB:CC:DD:EE:FF mydevice
+  adguard rewrites
+  adguard rewrite-add app.local 10.0.0.100
+  adguard rewrite-rm app.local
 HELP
 }
 
@@ -508,6 +568,9 @@ main() {
         protect-off)            cmd_protect_off ;;
         dhcp)                   cmd_dhcp ;;
         dhcp-add)               cmd_dhcp_add "$@" ;;
+        rewrites)               cmd_rewrites ;;
+        rewrite-add)            cmd_rewrite_add "$@" ;;
+        rewrite-rm)             cmd_rewrite_rm "$1" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
