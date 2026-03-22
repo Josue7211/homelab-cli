@@ -26,11 +26,20 @@ get_pve_token() {
 }
 
 pve_api() {
-    local path="$1"
+    local method="${1:-GET}"
+    local path="$2"
+    shift 2
     local token
     token=$(get_pve_token)
-    curl -sk "${PVE_HOST}/api2/json${path}" \
+    local -a curl_args=(
+        -sk
+        -X "$method"
+        "${PVE_HOST}/api2/json${path}"
         -H "Authorization: PVEAPIToken=${PVE_TOKEN}=${token}"
+    )
+    # Remaining args are passed through (e.g., -d key=val for form data)
+    curl_args+=("$@")
+    curl "${curl_args[@]}"
 }
 
 # ── Proxmox commands ─────────────────────────────────────────────
@@ -41,7 +50,7 @@ cmd_status() {
 
     # Proxmox node
     echo "  PROXMOX (${PVE_HOST})"
-    pve_api "/cluster/resources" | python3 -c "
+    pve_api GET "/cluster/resources" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)['data']
 node = [r for r in data if r['type'] == 'node'][0] if data else {}
@@ -117,7 +126,7 @@ for v in sorted(vms, key=lambda x: x.get('vmid', 0)):
 }
 
 cmd_vms() {
-    pve_api "/cluster/resources" | python3 -c "
+    pve_api GET "/cluster/resources" | python3 -c "
 import sys, json
 data = json.load(sys.stdin)['data']
 vms = [r for r in data if r['type'] in ('qemu', 'lxc')]
@@ -145,7 +154,7 @@ cmd_vm() {
         die "VMID $vmid not found"
     fi
 
-    pve_api "/nodes/${PVE_NODE}/$vm_type/$vmid/status/current" | python3 -c "
+    pve_api GET "/nodes/${PVE_NODE}/$vm_type/$vmid/status/current" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)['data']
 print(f'  Name:     {d.get(\"name\", \"?\")}')
@@ -171,8 +180,7 @@ cmd_start() {
     local vm_type
     vm_type=$(_resolve_vm_type "$vmid")
     info "Starting VMID $vmid..."
-    curl -sk -X POST "${PVE_HOST}/api2/json/nodes/${PVE_NODE}/$vm_type/$vmid/status/start" \
-        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=$(get_pve_token)" > /dev/null
+    pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/status/start" > /dev/null
     ok "Done."
 }
 
@@ -181,8 +189,7 @@ cmd_stop() {
     local vm_type
     vm_type=$(_resolve_vm_type "$vmid")
     info "Shutting down VMID $vmid..."
-    curl -sk -X POST "${PVE_HOST}/api2/json/nodes/${PVE_NODE}/$vm_type/$vmid/status/shutdown" \
-        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=$(get_pve_token)" > /dev/null
+    pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/status/shutdown" > /dev/null
     ok "Done. (graceful shutdown sent)"
 }
 
@@ -191,8 +198,7 @@ cmd_reboot() {
     local vm_type
     vm_type=$(_resolve_vm_type "$vmid")
     info "Rebooting VMID $vmid..."
-    curl -sk -X POST "${PVE_HOST}/api2/json/nodes/${PVE_NODE}/$vm_type/$vmid/status/reboot" \
-        -H "Authorization: PVEAPIToken=${PVE_TOKEN}=$(get_pve_token)" > /dev/null
+    pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/status/reboot" > /dev/null
     ok "Done."
 }
 
@@ -200,7 +206,7 @@ cmd_snapshots() {
     local vmid="$1"
     local vm_type
     vm_type=$(_resolve_vm_type "$vmid")
-    pve_api "/nodes/${PVE_NODE}/$vm_type/$vmid/snapshot" | python3 -c "
+    pve_api GET "/nodes/${PVE_NODE}/$vm_type/$vmid/snapshot" | python3 -c "
 import sys, json, datetime
 snaps = json.load(sys.stdin)['data']
 snaps = [s for s in snaps if s.get('name') != 'current']
@@ -219,7 +225,7 @@ for s in sorted(snaps, key=lambda x: x.get('snaptime', 0)):
 }
 
 cmd_storage() {
-    pve_api "/nodes/${PVE_NODE}/storage" | python3 -c "
+    pve_api GET "/nodes/${PVE_NODE}/storage" | python3 -c "
 import sys, json
 stores = json.load(sys.stdin)['data']
 print(f'  {\"Name\":<18} {\"Type\":<10} {\"Used\":<12} {\"Total\":<12} {\"Usage\":<8} {\"Status\"}')
@@ -280,7 +286,7 @@ cmd_redeploy() {
 _resolve_vm_type() {
     local vmid="$1"
     local result
-    result=$(pve_api "/cluster/resources" | python3 -c "
+    result=$(pve_api GET "/cluster/resources" | python3 -c "
 import sys, json
 vmid = int($vmid)
 for r in json.load(sys.stdin)['data']:
