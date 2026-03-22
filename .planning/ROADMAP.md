@@ -98,10 +98,11 @@ Plans:
   1. User can list playlists, collections, and shared users
   2. User can kill active streams and view transcode/bandwidth info for running sessions
   3. User can run server maintenance (optimize bundles, empty trash) and view server settings
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01-PLAN.md — plex_api method extension + browsing commands (playlists, collections, shared, transcode)
+- [ ] 05-02-PLAN.md — Stream control + server maintenance (kill, settings, optimize, empty-trash)
 
 ### Phase 6: Jellyfin
 **Goal**: Users can manage users, scheduled tasks, plugins, and server info from the command line
@@ -252,7 +253,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 2. Portainer | 0/3 | Planning complete | - |
 | 3. ARR Suite | 0/3 | Planning complete | - |
 | 4. Proxmox | 0/3 | Planning complete | - |
-| 5. Plex | 0/? | Not started | - |
+| 5. Plex | 0/2 | Planning complete | - |
 | 6. Jellyfin | 0/? | Not started | - |
 | 7. qBittorrent | 0/? | Not started | - |
 | 8. AdGuard | 0/? | Not started | - |
