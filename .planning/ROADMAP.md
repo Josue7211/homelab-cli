@@ -101,7 +101,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — plex_api method extension + browsing commands (playlists, collections, shared, transcode)
+- [x] 05-01-PLAN.md — plex_api method extension + browsing commands (playlists, collections, shared, transcode)
 - [ ] 05-02-PLAN.md — Stream control + server maintenance (kill, settings, optimize, empty-trash)
 
 ### Phase 6: Jellyfin
@@ -253,7 +253,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 2. Portainer | 0/3 | Planning complete | - |
 | 3. ARR Suite | 0/3 | Planning complete | - |
 | 4. Proxmox | 0/3 | Planning complete | - |
-| 5. Plex | 0/2 | Planning complete | - |
+| 5. Plex | 1/2 | Executing | - |
 | 6. Jellyfin | 0/? | Not started | - |
 | 7. qBittorrent | 0/? | Not started | - |
 | 8. AdGuard | 0/? | Not started | - |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-03-PLAN.md (Proxmox backup & migration)
-last_updated: "2026-03-22T08:46:57.887Z"
+stopped_at: Completed 05-01-PLAN.md (Plex browsing commands)
+last_updated: "2026-03-22T08:56:47Z"
 progress:
   total_phases: 16
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 12
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 04 — proxmox
+**Current focus:** Phase 05 — plex
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (plex) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Plan: Not started
 | Phase 04 P01 | 2min | 2 tasks | 1 files |
 | Phase 04 P02 | 1min | 2 tasks | 1 files |
 | Phase 04 P03 | 2min | 2 tasks | 1 files |
+| Phase 05 P01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Snapshot restore and delete require confirm_action; create does not (non-destructive)
 - [Phase 04]: vzdump endpoint is /nodes/{node}/vzdump with vmid as form param (not nested under VM type)
 - [Phase 04]: Backup defaults to zstd compression and snapshot mode; migrate detects online/offline via status check
+- [Phase 05]: plex_api method is 2nd param (not 1st like pve_api) to preserve backward compat for 8 existing callers
+- [Phase 05]: Shared users tries Tautulli get_users_table first for richer data, falls back to Plex /friends
+- [Phase 05]: Transcode command reuses Tautulli-first pattern with Plex /status/sessions fallback
 
 ### Pending Todos
 
@@ -97,8 +101,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:44:05.627Z
-Stopped at: Completed 04-03-PLAN.md (Proxmox backup & migration)
+Last session: 2026-03-22T08:56:47Z
+Stopped at: Completed 05-01-PLAN.md (Plex browsing commands)
 Resume with: /gsd:autonomous --from 2
 Notes:
 
