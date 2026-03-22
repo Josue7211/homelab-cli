@@ -750,6 +750,109 @@ print(json.dumps({'name': 'RenameFiles', 'artistId': int(os.environ['ID'])}))
     ok "  Rename triggered for item $id on $app."
 }
 
+# ── Configuration Listing ──────────────────────────────────────
+
+cmd_profiles() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr profiles <sonarr|radarr|lidarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Profiles not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "/qualityprofile") || die "Can't connect to $app"
+
+    echo -e "  ${BOLD}${app}${RESET} — quality profiles:"
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (none)')
+    sys.exit()
+print(f'    {\"ID\":<6} {\"Name\":<30} {\"Cutoff\":<20} {\"Items\"}')
+print(f'    {\"--\":<6} {\"----\":<30} {\"------\":<20} {\"-----\"}')
+for p in data:
+    pid = p.get('id', '?')
+    name = p.get('name', '?')
+    cutoff_id = p.get('cutoff', 0)
+    items = p.get('items', [])
+    # Find cutoff name from items
+    cutoff_name = str(cutoff_id)
+    for item in items:
+        if item.get('quality', {}).get('id') == cutoff_id:
+            cutoff_name = item['quality'].get('name', str(cutoff_id))
+            break
+        for sub in item.get('items', []):
+            if sub.get('quality', {}).get('id') == cutoff_id:
+                cutoff_name = sub['quality'].get('name', str(cutoff_id))
+                break
+    count = len([i for i in items if i.get('allowed')])
+    print(f'    {pid:<6} {name:<30} {cutoff_name:<20} {count} allowed')
+" 2>/dev/null
+}
+
+cmd_rootfolders() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr rootfolders <sonarr|radarr|lidarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Root folders not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "/rootfolder") || die "Can't connect to $app"
+
+    echo -e "  ${BOLD}${app}${RESET} — root folders:"
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (none)')
+    sys.exit()
+print(f'    {\"ID\":<6} {\"Path\":<40} {\"Free Space\"}')
+print(f'    {\"--\":<6} {\"----\":<40} {\"----------\"}')
+for f in data:
+    fid = f.get('id', '?')
+    path = f.get('path', '?')
+    free = f.get('freeSpace', 0) / 1024**3
+    print(f'    {fid:<6} {path:<40} {free:.1f} GB')
+" 2>/dev/null
+}
+
+cmd_tags() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr tags <sonarr|radarr|lidarr|prowlarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr|prowlarr) ;;
+        *) die "Tags not supported for $app" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "/tag") || die "Can't connect to $app"
+
+    echo -e "  ${BOLD}${app}${RESET} — tags:"
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (none)')
+    sys.exit()
+print(f'    {\"ID\":<6} {\"Label\"}')
+print(f'    {\"--\":<6} {\"-----\"}')
+for t in sorted(data, key=lambda x: x.get('id', 0)):
+    tid = t.get('id', '?')
+    label = t.get('label', '?')
+    print(f'    {tid:<6} {label}')
+" 2>/dev/null
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "arr"
@@ -833,6 +936,9 @@ main() {
         delete|del)             cmd_delete "$@" ;;
         download|dl)            cmd_download "$@" ;;
         rename|rn)              cmd_rename "$@" ;;
+        profiles|qp)            cmd_profiles "$@" ;;
+        rootfolders|rf)         cmd_rootfolders "$@" ;;
+        tags)                   cmd_tags "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             # Try as app shortcut: arr sonarr queue → arr queue sonarr
@@ -854,6 +960,9 @@ main() {
                     delete|del)    cmd_delete "$real_app" "$@" ;;
                     download|dl)   cmd_download "$real_app" "$@" ;;
                     rename|rn)     cmd_rename "$real_app" "$@" ;;
+                    profiles|qp)   cmd_profiles "$real_app" ;;
+                    rootfolders|rf) cmd_rootfolders "$real_app" ;;
+                    tags)          cmd_tags "$real_app" ;;
                     *)             die "Unknown subcommand: $subcmd" ;;
                 esac
             else
