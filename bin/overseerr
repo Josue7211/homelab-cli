@@ -303,6 +303,95 @@ for m in results:
 "
 }
 
+cmd_approve_all() {
+    header "BULK APPROVE REQUESTS"
+
+    local response
+    response=$(overseerr_api GET "/request?filter=pending&take=100") || die "Cannot connect to Overseerr"
+
+    # Extract pending request IDs
+    local ids count
+    ids=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data.get('results', [])
+for r in results:
+    print(r.get('id', ''))
+") || die "Failed to parse requests"
+
+    count=$(echo "$ids" | grep -c '[0-9]' || true)
+
+    if [[ "$count" -eq 0 ]]; then
+        info "  No pending requests to approve."
+        return
+    fi
+
+    # Show what will be approved
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data.get('results', [])
+for r in results:
+    rid = r.get('id', '?')
+    media = r.get('media', {})
+    title = media.get('title', media.get('originalTitle', ''))
+    if not title:
+        title = f'Request #{rid}'
+    rtype = r.get('type', '?')
+    user = r.get('requestedBy', {}).get('displayName', r.get('requestedBy', {}).get('email', '?'))
+    print(f'  #{rid:<5} {rtype:<6} {title:<40} by {user}')
+"
+    echo ""
+
+    confirm_action "Approve all $count pending requests?"
+
+    local approved=0 failed=0
+    while IFS= read -r id; do
+        [[ -z "$id" ]] && continue
+        if overseerr_api POST "/request/${id}/approve" >/dev/null 2>&1; then
+            ((approved++))
+        else
+            warn "  Failed to approve request #$id"
+            ((failed++))
+        fi
+    done <<< "$ids"
+
+    ok "  Approved: $approved"
+    [[ "$failed" -gt 0 ]] && warn "  Failed: $failed"
+}
+
+cmd_users() {
+    header "OVERSEERR USERS"
+
+    local response
+    response=$(overseerr_api GET "/user?take=50") || die "Cannot connect to Overseerr"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+results = data.get('results', [])
+total = data.get('pageInfo', {}).get('results', len(results))
+if not results:
+    print('  No users found.')
+    sys.exit()
+print(f'  Total: {total} users\n')
+print(f'  {\"ID\":<6} {\"Name\":<20} {\"Email\":<30} {\"Type\":<10} {\"Requests\":<10} {\"Role\":<8}')
+print(f'  {\"─\"*6} {\"─\"*20} {\"─\"*30} {\"─\"*10} {\"─\"*10} {\"─\"*8}')
+type_map = {1: 'Plex', 2: 'Local', 3: 'Jellyfin'}
+for u in results:
+    uid = u.get('id', '?')
+    name = (u.get('displayName', '') or u.get('username', '') or '?')[:20]
+    email = (u.get('email', '') or '-')[:30]
+    utype = type_map.get(u.get('userType', 0), '?')
+    reqs = u.get('requestCount', 0)
+    perms = u.get('permissions', 0)
+    role = 'admin' if perms & 2 else 'user'
+    # Color admin role
+    role_str = f'\033[33m{role}\033[0m' if role == 'admin' else role
+    print(f'  {uid:<6} {name:<20} {email:<30} {utype:<10} {reqs:<10} {role_str}')
+"
+}
+
 # ── Help ───────────────────────────────────────────────────────
 cmd_help() {
     show_version "overseerr"
@@ -359,6 +448,8 @@ main() {
         decline)                cmd_decline "$@" ;;
         delete|rm)              cmd_delete "$@" ;;
         media)                  cmd_media ;;
+        approve-all)            cmd_approve_all ;;
+        users)                  cmd_users ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
