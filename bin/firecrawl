@@ -378,35 +378,41 @@ USAGE:
   firecrawl <command> [args...]
 
 SCRAPING:
-  scrape <url> [format] [outfile]    Scrape a page (markdown|html|links, default: markdown)
-    --wait N                         Wait time in ms for JS-heavy pages
+  scrape <url> [fmt] [outfile]     Scrape a page (markdown|html|links)
+    --wait <ms>                      Wait time for JS-heavy pages
     --headers 'K:V,K2:V2'           Custom request headers
-  batch <url1> [url2 ...]            Batch scrape multiple URLs
+  batch <url1> [url2 ...]          Batch scrape multiple URLs
 
 CRAWLING:
-  crawl <url> [limit]                Crawl a site (default: 10 pages)
-    --depth N                        Max crawl depth (default: 2)
-    --include PATTERN                URL path pattern to include
-    --exclude PATTERN                URL path pattern to exclude
-  status <job_id>                    Check crawl job status and results
+  crawl <url> [limit]              Crawl a site (default: 10 pages)
+    --depth <n>                      Max crawl depth (default: 2)
+    --include <pattern>              Include URL paths matching pattern
+    --exclude <pattern>              Exclude URL paths matching pattern
+  status <job_id>                  Check crawl job status and results
+
+JOB MANAGEMENT:
+  cancel <job_id>                  Cancel a running crawl job
+  jobs                             List recent tracked jobs
 
 DISCOVERY:
-  map <url>                          Discover all URLs on a site
-  search <query> [limit]             Search the web (default: 5 results)
-  extract <url> <prompt>             Extract structured data with a prompt
+  map <url>                        Discover all URLs on a site
+  search <query> [limit]           Search the web (default: 5 results)
+  extract <url> <prompt>           Extract structured data with a prompt
 
-SYSTEM:
-  health                             Check Firecrawl status
-  help                               Show this help
+OTHER:
+  health                           Check Firecrawl status
+  help                             Show this help
 
 EXAMPLES:
   firecrawl scrape https://example.com
+  firecrawl scrape https://docs.laravel.com --wait 3000 --headers 'Accept-Language:en'
   firecrawl scrape https://docs.laravel.com/auth markdown auth.md
-  firecrawl scrape https://example.com --wait 5000 --headers 'Accept:text/html'
-  firecrawl batch https://example.com https://example.org
-  firecrawl crawl https://docs.laravel.com 20 --depth 3
-  firecrawl crawl https://example.com --include '/docs/*' --exclude '/blog/*'
+  firecrawl batch https://example.com https://example.org https://example.net
+  firecrawl crawl https://docs.laravel.com 20 --depth 3 --include '/docs/'
+  firecrawl crawl https://example.com --exclude '/blog/'
   firecrawl status abc-123-def
+  firecrawl cancel abc-123-def
+  firecrawl jobs
   firecrawl map https://spotify.com
   firecrawl search "spotify wrapped design patterns"
   firecrawl extract https://example.com "extract all product names and prices"
