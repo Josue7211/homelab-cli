@@ -759,6 +759,93 @@ for s in streams:
 "
 }
 
+cmd_kill() {
+    local session_id="${1:-}"
+    [[ -z "$session_id" ]] && die "Usage: plex kill <session_id>  (get session IDs from 'plex streams')"
+
+    confirm_action "Kill stream session ${session_id}?"
+
+    info "Stopping session ${session_id}..."
+    local response
+    response=$(plex_api "/status/sessions/terminate?sessionId=${session_id}&reason=Terminated+via+CLI") \
+        || die "Failed to terminate session ${session_id}"
+    ok "Session ${session_id} terminated."
+}
+
+cmd_settings() {
+    header "PLEX SERVER SETTINGS"
+
+    local response
+    response=$(plex_api "/:/prefs") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$response" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin).get('MediaContainer', {})
+settings = data.get('Setting', [])
+
+if not settings:
+    print('  No settings found.')
+    sys.exit()
+
+# Build a lookup dict
+prefs = {s.get('id', ''): s for s in settings}
+
+# Key settings to display, grouped
+groups = {
+    'GENERAL': [
+        ('FriendlyName', 'Server name'),
+        ('sendCrashReports', 'Crash reports'),
+        ('PublishServerOnPlexOnline', 'Published online'),
+    ],
+    'LIBRARY': [
+        ('ScannerLowPriority', 'Low priority scanner'),
+        ('ScheduledLibraryUpdatesEnabled', 'Auto library updates'),
+        ('ScheduledLibraryUpdateInterval', 'Update interval (sec)'),
+        ('GenerateIntroMarkerBehavior', 'Intro detection'),
+    ],
+    'TRANSCODER': [
+        ('TranscoderQuality', 'Transcode quality'),
+        ('TranscoderTempDirectory', 'Temp directory'),
+        ('TranscoderH264BackgroundPreset', 'H264 background preset'),
+        ('HardwareAcceleratedCodecs', 'Hardware accel'),
+    ],
+    'NETWORK': [
+        ('ManualPortMappingMode', 'Manual port mapping'),
+        ('secureConnections', 'Secure connections'),
+        ('customConnections', 'Custom connections'),
+        ('allowedNetworks', 'Allowed networks'),
+        ('RelayEnabled', 'Relay enabled'),
+    ],
+    'DLNA': [
+        ('DlnaEnabled', 'DLNA enabled'),
+    ],
+}
+
+for group, keys in groups.items():
+    items_found = []
+    for pref_id, label in keys:
+        pref = prefs.get(pref_id)
+        if pref:
+            val = pref.get('value', pref.get('default', '?'))
+            items_found.append((label, val))
+
+    if items_found:
+        print(f'\n  {group}:')
+        for label, val in items_found:
+            # Format booleans
+            if isinstance(val, bool) or str(val).lower() in ('true', 'false', '0', '1'):
+                val_str = str(val)
+                if val_str.lower() in ('true', '1'):
+                    val_str = '\033[32mtrue\033[0m'
+                else:
+                    val_str = '\033[2mfalse\033[0m'
+            else:
+                val_str = str(val)
+            print(f'    {label:<28} {val_str}')
+"
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "plex"
@@ -817,6 +904,8 @@ main() {
         collections|cols)       cmd_collections "${1:-}" ;;
         shared)                 cmd_shared ;;
         transcode|tc)           cmd_transcode ;;
+        kill|stop-stream)       cmd_kill "${1:-}" ;;
+        settings|prefs)         cmd_settings ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
