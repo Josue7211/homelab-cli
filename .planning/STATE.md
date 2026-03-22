@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-02-PLAN.md (Proxmox snapshots & cluster commands)
-last_updated: "2026-03-22T08:40:18.755Z"
+stopped_at: Completed 04-03-PLAN.md (Proxmox backup & migration)
+last_updated: "2026-03-22T08:44:05.630Z"
 progress:
   total_phases: 16
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Plan: 3 of 3
 | Phase 03 P03 | 8min | 2 tasks | 1 files |
 | Phase 04 P01 | 2min | 2 tasks | 1 files |
 | Phase 04 P02 | 1min | 2 tasks | 1 files |
+| Phase 04 P03 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - [Phase 04]: pve_api takes method as first arg with passthrough curl args for form-encoded data
 - [Phase 04]: cmd_clone creates full clones (not linked) for portability
 - [Phase 04]: Snapshot restore and delete require confirm_action; create does not (non-destructive)
+- [Phase 04]: vzdump endpoint is /nodes/{node}/vzdump with vmid as form param (not nested under VM type)
+- [Phase 04]: Backup defaults to zstd compression and snapshot mode; migrate detects online/offline via status check
 
 ### Pending Todos
 
@@ -94,8 +97,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:40:18.752Z
-Stopped at: Completed 04-02-PLAN.md (Proxmox snapshots & cluster commands)
+Last session: 2026-03-22T08:44:05.627Z
+Stopped at: Completed 04-03-PLAN.md (Proxmox backup & migration)
 Resume with: /gsd:autonomous --from 2
 Notes:
 

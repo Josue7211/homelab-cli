@@ -82,8 +82,8 @@
 
 - [x] **PVE-08**: List cluster nodes (`homelab nodes`)
 - [x] **PVE-09**: List recent tasks (`homelab tasks [count]`)
-- [ ] **PVE-10**: Backup VM (`homelab backup <vmid>`)
-- [ ] **PVE-11**: Migrate VM to another node (`homelab migrate <vmid> <node>`)
+- [x] **PVE-10**: Backup VM (`homelab backup <vmid>`)
+- [x] **PVE-11**: Migrate VM to another node (`homelab migrate <vmid> <node>`)
 
 ### Plex — Expanded Management
 
@@ -280,8 +280,8 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PVE-07 | Phase 4: Proxmox | Complete |
 | PVE-08 | Phase 4: Proxmox | Complete |
 | PVE-09 | Phase 4: Proxmox | Complete |
-| PVE-10 | Phase 4: Proxmox | Pending |
-| PVE-11 | Phase 4: Proxmox | Pending |
+| PVE-10 | Phase 4: Proxmox | Complete |
+| PVE-11 | Phase 4: Proxmox | Complete |
 | PLEX-01 | Phase 5: Plex | Pending |
 | PLEX-02 | Phase 5: Plex | Pending |
 | PLEX-03 | Phase 5: Plex | Pending |

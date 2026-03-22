@@ -88,7 +88,7 @@ Plans:
 Plans:
 - [x] 04-01-PLAN.md — pve_api refactor + VM config commands (config, set, resize, clone)
 - [x] 04-02-PLAN.md — Snapshot operations + cluster listings (snapshot-create/restore/delete, nodes, tasks)
-- [ ] 04-03-PLAN.md — Cluster operations (backup, migrate) + final validation
+- [x] 04-03-PLAN.md — Cluster operations (backup, migrate) + final validation
 
 ### Phase 5: Plex
 **Goal**: Users can manage playlists, collections, streams, and server maintenance from the command line
