@@ -285,6 +285,65 @@ cmd_delete() {
     ok "  Deleted item: $item_name ($item_id)"
 }
 
+cmd_folders() {
+    check_unlocked
+
+    local folders_json
+    folders_json=$(bw list folders 2>/dev/null) || die "Failed to list folders"
+
+    header "VAULT FOLDERS"
+
+    echo "$folders_json" | python3 -c "
+import sys, json
+folders = json.load(sys.stdin)
+print(f'  Total: {len(folders)} folders\n')
+print(f'  {\"(no folder)\":<40} Items without a folder')
+print()
+print(f'  {\"ID\":<40} {\"Name\"}')
+print(f'  {\"─\"*38}   {\"─\"*30}')
+for f in sorted(folders, key=lambda x: x.get('name', '')):
+    fid = f.get('id', '?')
+    name = f.get('name', '?')
+    print(f'  {fid:<40} {name}')
+"
+}
+
+cmd_generate() {
+    local length=20
+    local charset="-ulns"  # uppercase, lowercase, number, special
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --length)       length="${2:-20}"; shift 2 ;;
+            --no-symbols)   charset="-uln"; shift ;;
+            --numbers-only) charset="-n"; shift ;;
+            *)              die "Unknown option: $1" ;;
+        esac
+    done
+
+    local pw
+    pw=$(bw generate --length "$length" $charset 2>/dev/null) || die "Failed to generate password"
+    echo "$pw"
+}
+
+cmd_totp() {
+    local identifier="${1:-}"
+    [[ -z "$identifier" ]] && die "Usage: vault totp <id|name>"
+
+    check_unlocked
+
+    local code
+    code=$(bw get totp "$identifier" 2>/dev/null) || die "No TOTP configured for '$identifier'"
+
+    [[ -z "$code" ]] && die "No TOTP configured for '$identifier'"
+
+    local remaining
+    remaining=$(python3 -c "import time; print(30 - int(time.time()) % 30)")
+
+    echo -e "  Code:      ${BOLD}${code}${RESET}"
+    echo -e "  Expires:   ${remaining}s"
+}
+
 cmd_help() {
     show_version "vault"
     cat <<'HELP'
@@ -342,6 +401,9 @@ main() {
         create)         cmd_create "$@" ;;
         edit)           cmd_edit "$@" ;;
         delete|rm)      cmd_delete "$@" ;;
+        folders)        cmd_folders ;;
+        generate|gen)   cmd_generate "$@" ;;
+        totp)           cmd_totp "$@" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
