@@ -83,11 +83,12 @@ Plans:
   1. User can view and modify VM configuration, resize disks, and clone VMs
   2. User can create, restore, and delete snapshots with confirmation prompts on destructive operations
   3. User can list cluster nodes, view recent tasks, back up VMs, and migrate VMs between nodes
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — pve_api refactor + VM config commands (config, set, resize, clone)
+- [ ] 04-02-PLAN.md — Snapshot operations + cluster listings (snapshot-create/restore/delete, nodes, tasks)
+- [ ] 04-03-PLAN.md — Cluster operations (backup, migrate) + final validation
 
 ### Phase 5: Plex
 **Goal**: Users can manage playlists, collections, streams, and server maintenance from the command line
@@ -250,7 +251,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 1. Foundation | 0/2 | Planning complete | - |
 | 2. Portainer | 0/3 | Planning complete | - |
 | 3. ARR Suite | 0/3 | Planning complete | - |
-| 4. Proxmox | 0/? | Not started | - |
+| 4. Proxmox | 0/3 | Planning complete | - |
 | 5. Plex | 0/? | Not started | - |
 | 6. Jellyfin | 0/? | Not started | - |
 | 7. qBittorrent | 0/? | Not started | - |
