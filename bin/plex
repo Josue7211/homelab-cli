@@ -611,6 +611,154 @@ for c in sorted(items, key=lambda x: x.get('title', '').lower()):
 " 2>/dev/null && return 0 || return 1
 }
 
+cmd_shared() {
+    header "SHARED USERS"
+
+    if tautulli_available 2>/dev/null; then
+        local response
+        response=$(tautulli_api "get_users_table" "length=100") || die "Failed to fetch users from Tautulli"
+
+        echo "$response" | python3 -c "
+import sys, json
+from datetime import datetime
+
+data = json.load(sys.stdin).get('response', {}).get('data', {})
+users = data.get('data', [])
+
+# Filter to shared users only (exclude server owner / local user)
+shared = [u for u in users if u.get('is_home_user') or u.get('shared_libraries')]
+
+if not shared:
+    print('  No shared users found.')
+    sys.exit()
+
+print(f'  {\"USER\":<20} {\"EMAIL\":<28} {\"LIBRARIES\":<10} {\"LAST SEEN\"}')
+print(f'  {\"─\" * 20} {\"─\" * 28} {\"─\" * 10} {\"─\" * 18}')
+
+for u in sorted(shared, key=lambda x: x.get('friendly_name', '').lower()):
+    name = u.get('friendly_name', u.get('username', '?'))[:19]
+    email = u.get('email', '')[:27]
+    libs = u.get('shared_libraries', [])
+    lib_count = str(len(libs)) if isinstance(libs, list) else str(libs)
+    last = u.get('last_seen', '')
+    if last:
+        try:
+            last = datetime.fromtimestamp(int(last)).strftime('%Y-%m-%d %H:%M')
+        except (ValueError, OSError):
+            last = '?'
+    else:
+        last = 'never'
+    print(f'  {name:<20} {email:<28} {lib_count:<10} {last}')
+"
+        return
+    fi
+
+    # Fallback: Plex /friends API
+    local response
+    response=$(plex_api "/friends") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$response" | python3 -c "
+import sys, json
+
+# Plex friends endpoint may return under different keys
+data = json.load(sys.stdin)
+friends = data.get('MediaContainer', {}).get('User', [])
+if not isinstance(friends, list):
+    friends = [friends] if friends else []
+
+if not friends:
+    print('  No shared users found.')
+    sys.exit()
+
+print(f'  {\"USER\":<20} {\"EMAIL\":<28} {\"STATUS\":<12} {\"HOME USER\"}')
+print(f'  {\"─\" * 20} {\"─\" * 28} {\"─\" * 12} {\"─\" * 10}')
+
+for f in sorted(friends, key=lambda x: x.get('title', '').lower()):
+    name = f.get('title', f.get('username', '?'))[:19]
+    email = f.get('email', '')[:27]
+    status = f.get('status', '?')[:11]
+    home = 'yes' if f.get('home', False) else 'no'
+    print(f'  {name:<20} {email:<28} {status:<12} {home}')
+"
+}
+
+cmd_transcode() {
+    header "TRANSCODE / BANDWIDTH"
+
+    if tautulli_available 2>/dev/null; then
+        local response
+        response=$(tautulli_api "get_activity") || die "Failed to fetch activity from Tautulli"
+
+        echo "$response" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin).get('response', {}).get('data', {})
+sessions = data.get('sessions', [])
+wan_bw = data.get('total_bandwidth', 0)
+lan_bw = data.get('lan_bandwidth', 0)
+
+if not sessions:
+    print('  No active streams.')
+    sys.exit()
+
+print(f'  Total bandwidth: {wan_bw} kbps (LAN: {lan_bw} kbps)')
+print()
+print(f'  {\"USER\":<16} {\"DECISION\":<14} {\"VIDEO\":<18} {\"AUDIO\":<16} {\"BW (kbps)\":<12} {\"CONTAINER\"}')
+print(f'  {\"─\" * 16} {\"─\" * 14} {\"─\" * 18} {\"─\" * 16} {\"─\" * 12} {\"─\" * 10}')
+
+for s in sessions:
+    user = s.get('friendly_name', '?')[:15]
+    decision = s.get('transcode_decision', 'direct play')[:13]
+    v_codec = s.get('video_codec', '?')
+    v_res = s.get('video_resolution', '')
+    video = f'{v_codec} {v_res}'.strip()[:17]
+    a_codec = s.get('audio_codec', '?')
+    a_channels = s.get('audio_channels', '')
+    audio = f'{a_codec} {a_channels}ch'.strip()[:15] if a_channels else a_codec[:15]
+    bw = s.get('bandwidth', '?')
+    container = s.get('container', '?')[:9]
+    print(f'  {user:<16} {decision:<14} {video:<18} {audio:<16} {bw:<12} {container}')
+"
+        return
+    fi
+
+    # Fallback: Plex sessions API
+    local sessions
+    sessions=$(plex_api "/status/sessions") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$sessions" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin).get('MediaContainer', {})
+streams = data.get('Metadata', [])
+
+if not streams:
+    print('  No active streams.')
+    sys.exit()
+
+print(f'  {\"USER\":<16} {\"DECISION\":<14} {\"VIDEO\":<18} {\"AUDIO\":<16} {\"CONTAINER\"}')
+print(f'  {\"─\" * 16} {\"─\" * 14} {\"─\" * 18} {\"─\" * 16} {\"─\" * 10}')
+
+for s in streams:
+    user = s.get('User', {}).get('title', '?')[:15]
+    ts = s.get('TranscodeSession', {})
+    if ts:
+        decision = ts.get('transcodeDecision', 'transcode')[:13]
+        video = f'{ts.get(\"videoCodec\", \"?\")} {ts.get(\"videoResolution\", \"\")}'.strip()[:17]
+        audio = f'{ts.get(\"audioCodec\", \"?\")} {ts.get(\"audioChannels\", \"\")}ch'.strip()[:15]
+        container = ts.get('container', '?')[:9]
+    else:
+        decision = 'direct play'
+        media = s.get('Media', [{}])[0] if s.get('Media') else {}
+        part = media.get('Part', [{}])[0] if media.get('Part') else {}
+        video = f'{media.get(\"videoCodec\", \"?\")} {media.get(\"videoResolution\", \"\")}'.strip()[:17]
+        audio = f'{media.get(\"audioCodec\", \"?\")} {media.get(\"audioChannels\", \"\")}ch'.strip()[:15]
+        container = media.get('container', '?')[:9]
+
+    print(f'  {user:<16} {decision:<14} {video:<18} {audio:<16} {container}')
+"
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "plex"
@@ -667,6 +815,8 @@ main() {
         search|find)            cmd_search "$@" ;;
         playlists|pl)           cmd_playlists ;;
         collections|cols)       cmd_collections "${1:-}" ;;
+        shared)                 cmd_shared ;;
+        transcode|tc)           cmd_transcode ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
