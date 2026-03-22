@@ -208,10 +208,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can create, edit, and delete vault items with confirmation on delete
   2. User can list folders, generate passwords with configurable length, and retrieve TOTP codes
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — Item CRUD commands (create, edit, delete) + resolve_item_id helper
+- [ ] 13-02-PLAN.md — Utility commands (folders, generate, totp) + help text update
 
 ### Phase 14: Firecrawl
 **Goal**: Users can scrape with custom options, batch scrape, crawl with filters, and manage jobs from the command line
@@ -268,7 +269,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
-| 13. Vault | 0/? | Not started | - |
+| 13. Vault | 0/2 | Planning complete | - |
 | 14. Firecrawl | 0/? | Not started | - |
 | 15. Koel | 0/? | Not started | - |
 | 16. Help Text | 0/? | Not started | - |
