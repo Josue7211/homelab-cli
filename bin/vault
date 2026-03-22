@@ -119,6 +119,152 @@ cmd_sync() {
     ok "Vault synced."
 }
 
+resolve_item_id() {
+    local input="$1"
+    # If it looks like a UUID, use directly
+    if [[ "$input" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+        echo "$input"
+        return
+    fi
+    # Resolve name to ID
+    local item_json
+    item_json=$(bw get item "$input" 2>/dev/null) || die "Item '$input' not found"
+    echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])"
+}
+
+cmd_create() {
+    local name="" username="" password="" url="" folder=""
+
+    # Parse positional args
+    [[ $# -lt 3 ]] && die "Usage: vault create <name> <username> <password> [--url URL] [--folder FOLDER]"
+    name="$1"; username="$2"; password="$3"
+    shift 3
+
+    # Parse optional flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --url)    url="${2:-}"; shift 2 ;;
+            --folder) folder="${2:-}"; shift 2 ;;
+            *)        die "Unknown option: $1" ;;
+        esac
+    done
+
+    check_unlocked
+
+    # Resolve folder name to ID if specified
+    local folder_id=""
+    if [[ -n "$folder" ]]; then
+        folder_id=$(FOLDER="$folder" bw list folders 2>/dev/null | python3 -c "
+import sys, json, os
+folders = json.load(sys.stdin)
+target = os.environ['FOLDER'].lower()
+for f in folders:
+    if f.get('name', '').lower() == target:
+        print(f['id'])
+        sys.exit()
+print('')
+") || die "Failed to list folders"
+        [[ -z "$folder_id" ]] && die "Folder '$folder' not found"
+    fi
+
+    # Get template, modify, encode, create
+    local template
+    template=$(bw get template item 2>/dev/null) || die "Failed to get item template"
+
+    local encoded
+    encoded=$(NAME="$name" USERNAME="$username" PASSWORD="$password" URI="$url" FOLDER_ID="$folder_id" \
+        python3 -c "
+import sys, json, os, base64
+item = json.loads(sys.stdin.read())
+item['type'] = 1  # login
+item['name'] = os.environ['NAME']
+item['login'] = {
+    'username': os.environ['USERNAME'],
+    'password': os.environ['PASSWORD'],
+    'uris': []
+}
+uri = os.environ.get('URI', '')
+if uri:
+    item['login']['uris'] = [{'match': 0, 'uri': uri}]
+fid = os.environ.get('FOLDER_ID', '')
+if fid:
+    item['folderId'] = fid
+else:
+    item['folderId'] = None
+print(base64.b64encode(json.dumps(item).encode()).decode())
+" <<< "$template") || die "Failed to build item JSON"
+
+    local result
+    result=$(echo "$encoded" | bw create item 2>/dev/null) || die "Failed to create item"
+
+    local new_id
+    new_id=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "?")
+
+    ok "  Created item: $name (ID: $new_id)"
+}
+
+cmd_edit() {
+    [[ $# -lt 1 ]] && die "Usage: vault edit <id|name> [--username U] [--password P] [--url URL] [--notes N]"
+
+    local identifier="$1"; shift
+    local new_username="_UNSET_" new_password="_UNSET_" new_url="_UNSET_" new_notes="_UNSET_"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --username) new_username="${2:-}"; shift 2 ;;
+            --password) new_password="${2:-}"; shift 2 ;;
+            --url)      new_url="${2:-}"; shift 2 ;;
+            --notes)    new_notes="${2:-}"; shift 2 ;;
+            *)          die "Unknown option: $1" ;;
+        esac
+    done
+
+    # Check at least one field specified
+    if [[ "$new_username" == "_UNSET_" && "$new_password" == "_UNSET_" && "$new_url" == "_UNSET_" && "$new_notes" == "_UNSET_" ]]; then
+        die "No fields to edit. Use --username, --password, --url, or --notes"
+    fi
+
+    check_unlocked
+
+    local item_id
+    item_id=$(resolve_item_id "$identifier")
+
+    local item_json
+    item_json=$(bw get item "$item_id" 2>/dev/null) || die "Failed to get item '$identifier'"
+
+    local encoded
+    encoded=$(EDIT_USERNAME="$new_username" EDIT_PASSWORD="$new_password" EDIT_URL="$new_url" EDIT_NOTES="$new_notes" \
+        python3 -c "
+import sys, json, os, base64
+item = json.load(sys.stdin)
+login = item.get('login', {}) or {}
+
+u = os.environ.get('EDIT_USERNAME', '_UNSET_')
+if u != '_UNSET_':
+    login['username'] = u
+
+p = os.environ.get('EDIT_PASSWORD', '_UNSET_')
+if p != '_UNSET_':
+    login['password'] = p
+
+url = os.environ.get('EDIT_URL', '_UNSET_')
+if url != '_UNSET_':
+    login['uris'] = [{'match': 0, 'uri': url}]
+
+item['login'] = login
+
+n = os.environ.get('EDIT_NOTES', '_UNSET_')
+if n != '_UNSET_':
+    item['notes'] = n
+
+print(base64.b64encode(json.dumps(item).encode()).decode())
+" <<< "$item_json") || die "Failed to modify item JSON"
+
+    echo "$encoded" | bw edit item "$item_id" >/dev/null 2>&1 || die "Failed to edit item '$identifier'"
+
+    ok "  Updated item: $identifier"
+}
+
 cmd_help() {
     show_version "vault"
     cat <<'HELP'
@@ -162,6 +308,8 @@ main() {
         search|find)    cmd_search "$1" ;;
         list|ls)        cmd_list ;;
         sync)           cmd_sync ;;
+        create)         cmd_create "$@" ;;
+        edit)           cmd_edit "$@" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
