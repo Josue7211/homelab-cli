@@ -452,6 +452,123 @@ if seasons:
 "
 }
 
+cmd_services() {
+    header "CONNECTED SERVICES"
+
+    # Fetch Radarr services
+    local radarr
+    radarr=$(overseerr_api GET "/service/radarr") 2>/dev/null
+
+    echo "  Radarr:"
+    if [[ -n "$radarr" ]]; then
+        echo "$radarr" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (none configured)')
+    sys.exit()
+for s in data:
+    sid = s.get('id', '?')
+    name = s.get('name', '?')
+    host = s.get('hostname', s.get('baseUrl', '?'))
+    port = s.get('port', '')
+    url = f'{host}:{port}' if port else host
+    active = s.get('isActive', False)
+    default = s.get('isDefault', False)
+    profile = s.get('activeProfileName', s.get('activeProfileId', '-'))
+    active_str = '\033[32mactive\033[0m' if active else '\033[2minactive\033[0m'
+    default_str = ' (default)' if default else ''
+    print(f'    #{sid} {name:<20} {url:<35} {active_str}{default_str}  profile: {profile}')
+" 2>/dev/null || echo "    (none configured)"
+    else
+        echo "    (none configured)"
+    fi
+
+    echo ""
+
+    # Fetch Sonarr services
+    local sonarr
+    sonarr=$(overseerr_api GET "/service/sonarr") 2>/dev/null
+
+    echo "  Sonarr:"
+    if [[ -n "$sonarr" ]]; then
+        echo "$sonarr" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (none configured)')
+    sys.exit()
+for s in data:
+    sid = s.get('id', '?')
+    name = s.get('name', '?')
+    host = s.get('hostname', s.get('baseUrl', '?'))
+    port = s.get('port', '')
+    url = f'{host}:{port}' if port else host
+    active = s.get('isActive', False)
+    default = s.get('isDefault', False)
+    profile = s.get('activeProfileName', s.get('activeProfileId', '-'))
+    active_str = '\033[32mactive\033[0m' if active else '\033[2minactive\033[0m'
+    default_str = ' (default)' if default else ''
+    print(f'    #{sid} {name:<20} {url:<35} {active_str}{default_str}  profile: {profile}')
+" 2>/dev/null || echo "    (none configured)"
+    else
+        echo "    (none configured)"
+    fi
+}
+
+cmd_notifications() {
+    header "NOTIFICATION AGENTS"
+
+    local agents="discord email slack telegram pushover webhook"
+    local agent_labels="Discord Email Slack Telegram Pushover Webhook"
+
+    local i=0
+    for agent in $agents; do
+        i=$((i + 1))
+        local label
+        label=$(echo "$agent_labels" | cut -d' ' -f$i)
+
+        local data
+        data=$(overseerr_api GET "/settings/notifications/${agent}") 2>/dev/null
+
+        if [[ -n "$data" ]]; then
+            echo "$data" | AGENT="$label" python3 -c "
+import sys, json, os
+d = json.load(sys.stdin)
+agent = os.environ['AGENT']
+enabled = d.get('enabled', False)
+status = '\033[32menabled\033[0m' if enabled else '\033[2mdisabled\033[0m'
+
+# Config summary varies by agent type
+summary = ''
+agent_lower = agent.lower()
+if agent_lower == 'discord':
+    wh = d.get('options', {}).get('webhookUrl', '')
+    summary = 'webhook configured' if wh else 'no webhook'
+elif agent_lower == 'email':
+    sender = d.get('options', {}).get('senderName', d.get('options', {}).get('emailFrom', ''))
+    summary = f'from: {sender}' if sender else 'not configured'
+elif agent_lower == 'slack':
+    wh = d.get('options', {}).get('webhookUrl', '')
+    summary = 'webhook configured' if wh else 'no webhook'
+elif agent_lower == 'telegram':
+    token = d.get('options', {}).get('botAPI', d.get('options', {}).get('botToken', ''))
+    summary = 'bot configured' if token else 'no bot token'
+elif agent_lower == 'pushover':
+    key = d.get('options', {}).get('accessToken', d.get('options', {}).get('appToken', ''))
+    summary = 'configured' if key else 'not configured'
+elif agent_lower == 'webhook':
+    url = d.get('options', {}).get('webhookUrl', d.get('options', {}).get('jsonPayload', ''))
+    summary = 'URL configured' if url else 'not configured'
+
+print(f'  {agent:<12} {status:<25} {summary}')
+" 2>/dev/null || printf "  %-12s \033[2munavailable\033[0m\n" "$label"
+        else
+            printf "  %-12s \033[2munavailable\033[0m\n" "$label"
+        fi
+    done
+}
+
 # ── Help ───────────────────────────────────────────────────────
 cmd_help() {
     show_version "overseerr"
@@ -467,8 +584,7 @@ STATUS:
 
 REQUESTS:
   requests [filter]                 List requests (pending|approved|processing|available|declined|all)
-                                    Default: pending
-  request-detail <id>               Show full detail for a single request (alias: rd)
+  request-detail <id>               Show full detail for a single request
   search <query>                    Search for movies or TV shows
   request <movie|tv> <id> [seasons] Create a new request (seasons for TV only)
   approve <id>                      Approve a pending request
@@ -476,27 +592,29 @@ REQUESTS:
   decline <id>                      Decline a pending request
   delete <id>                       Delete a request
 
+USER MANAGEMENT:
+  users                             List all users with type and request count
+
 MEDIA:
   media                             List tracked media items
 
-USERS:
-  users                             List all users with type, requests, role
-
-HELP:
-  help                              Show this help
+CONFIGURATION:
+  services                          List connected Radarr/Sonarr services
+  notifications                     Show notification agent settings
 
 EXAMPLES:
   overseerr status                  Check server and request counts
   overseerr requests                Show pending requests
   overseerr requests all            Show all requests
+  overseerr request-detail 42       View full detail for request #42
   overseerr search "inception"      Search for a movie
   overseerr request movie 27205     Request a movie by TMDB ID
   overseerr request tv 1396 1 2     Request TV show seasons 1 & 2
   overseerr approve 42              Approve request #42
-  overseerr approve-all             Approve all pending requests
-  overseerr decline 42              Decline request #42
-  overseerr rd 42                   Show full detail for request #42
+  overseerr approve-all             Approve all pending requests at once
   overseerr users                   List all Overseerr users
+  overseerr services                Show connected Radarr/Sonarr instances
+  overseerr notifications           Show notification agent config
 
 CONFIG:
   OVERSEERR_URL                     Server URL (default: http://localhost:5055)
@@ -525,6 +643,8 @@ main() {
         approve-all)            cmd_approve_all ;;
         users)                  cmd_users ;;
         request-detail|rd)      cmd_request_detail "$@" ;;
+        services)               cmd_services ;;
+        notifications|notif)    cmd_notifications ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
