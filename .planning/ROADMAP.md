@@ -24,7 +24,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 - [x] **Phase 12: Overseerr** - Bulk approval, user/quota listing, request details, and service info (completed 2026-03-22)
 - [x] **Phase 13: Vault** - Item CRUD, folder listing, password generation, and TOTP codes (completed 2026-03-22)
 - [x] **Phase 14: Firecrawl** - Custom scrape options, batch scrape, crawl options, and job management (completed 2026-03-22)
-- [ ] **Phase 15: Koel** - Music search, playlists, recently played, stats, and browsing
+- [x] **Phase 15: Koel** - Music search, playlists, recently played, stats, and browsing (completed 2026-03-22)
 - [ ] **Phase 16: Help Text** - Update all 14 CLI help texts to include new commands
 
 ## Phase Details
@@ -238,7 +238,7 @@ Plans:
 
 Plans:
 - [x] 15-01-PLAN.md — API helpers (koel_api, koel_login) + search, playlists, recently played commands
-- [ ] 15-02-PLAN.md — Stats, albums, artists commands + help text update with LIBRARY section
+- [x] 15-02-PLAN.md — Stats, albums, artists commands + help text update with LIBRARY section
 
 ### Phase 16: Help Text
 **Goal**: All CLI help texts accurately reflect every new command added in phases 1-15
@@ -273,5 +273,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
 | 13. Vault | 2/2 | Complete    | 2026-03-22 |
 | 14. Firecrawl | 2/2 | Complete    | 2026-03-22 |
-| 15. Koel | 1/2 | In Progress|  |
+| 15. Koel | 2/2 | Complete   | 2026-03-22 |
 | 16. Help Text | 0/? | Not started | - |

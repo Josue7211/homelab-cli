@@ -192,8 +192,8 @@
 - [x] **KOEL-01**: Search music library (`koel search <query>`)
 - [x] **KOEL-02**: List playlists (`koel playlists`)
 - [x] **KOEL-03**: Show recently played (`koel recent`)
-- [ ] **KOEL-04**: Show library stats (`koel stats`)
-- [ ] **KOEL-05**: List albums/artists (`koel albums` / `koel artists`)
+- [x] **KOEL-04**: Show library stats (`koel stats`)
+- [x] **KOEL-05**: List albums/artists (`koel albums` / `koel artists`)
 
 ### Common Library
 
@@ -357,8 +357,8 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | KOEL-01 | Phase 15: Koel | Complete |
 | KOEL-02 | Phase 15: Koel | Complete |
 | KOEL-03 | Phase 15: Koel | Complete |
-| KOEL-04 | Phase 15: Koel | Pending |
-| KOEL-05 | Phase 15: Koel | Pending |
+| KOEL-04 | Phase 15: Koel | Complete |
+| KOEL-05 | Phase 15: Koel | Complete |
 | HELP-01 | Phase 16: Help Text | Pending |
 
 **Coverage:**

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-22T12:37:23.336Z"
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-03-22T12:41:58.784Z"
 progress:
   total_phases: 16
-  completed_phases: 14
+  completed_phases: 15
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -78,6 +78,7 @@ Plan: 2 of 2
 | Phase 14-firecrawl P01 | 2min | 2 tasks | 1 files |
 | Phase 14-firecrawl P02 | 2min | 2 tasks | 1 files |
 | Phase 15-koel P01 | 2min | 2 tasks | 1 files |
+| Phase 15-koel P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,7 @@ Recent decisions affecting current work:
 - [Phase 14-firecrawl]: Flag parsing uses while-loop with positional fallback for backward compat; help text reorganized into SCRAPING/CRAWLING/DISCOVERY/SYSTEM sections
 - [Phase 14-firecrawl]: Local file cache at ~/.cache/homelab-cli/firecrawl-jobs for job tracking; help text reorganized into 6 sections with JOB MANAGEMENT
 - [Phase 15-koel]: Token caching uses find -mmin -1440 for 24-hour TTL; search results grouped into SONGS/ALBUMS/ARTISTS sections; playlists piped through format_table
+- [Phase 15-koel]: Stats command adapts to multiple /api/data response shapes for API version compat; albums use ARTIST_FILTER env var for safe filter passing; help text has 7 sections with all 6 API commands
 
 ### Pending Todos
 
@@ -148,8 +150,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T12:37:23.331Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-03-22T12:41:58.778Z
+Stopped at: Completed 15-02-PLAN.md
 Resume with: /gsd:autonomous --from 8
 Notes:
 
