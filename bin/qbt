@@ -486,6 +486,80 @@ for p in sorted(peers, key=lambda x: x.get('progress', 0), reverse=True):
 "
 }
 
+cmd_priority() {
+    local input="${1:-}" file_index="${2:-}" prio="${3:-}"
+    [[ -z "$input" || -z "$file_index" || -z "$prio" ]] && die "Usage: qbt priority <hash|name> <file-index> <0|1|6|7>
+  Priority values: 0=skip, 1=normal, 6=high, 7=max"
+
+    # Validate priority
+    case "$prio" in
+        0|1|6|7) ;;
+        *) die "Invalid priority: $prio (expected: 0=skip, 1=normal, 6=high, 7=max)" ;;
+    esac
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    qbt_post "/api/v2/torrents/filePrio" "hash=${hash}&id=${file_index}&priority=${prio}" \
+        || die "Failed to set file priority"
+
+    local prio_label
+    case "$prio" in
+        0) prio_label="skip" ;; 1) prio_label="normal" ;; 6) prio_label="high" ;; 7) prio_label="max" ;;
+    esac
+    ok "  File #${file_index} priority set to ${prio_label}"
+}
+
+cmd_categories() {
+    header "QBITTORRENT CATEGORIES"
+
+    local cats
+    cats=$(qbt_get "/api/v2/torrents/categories") || die "Can't get categories"
+
+    echo "$cats" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  (no categories)')
+    sys.exit()
+
+print(f'  {len(data)} category/categories\n')
+print(f'  {\"Name\":<25} {\"Save Path\"}')
+print(f'  {\"─\"*25} {\"─\"*50}')
+
+for name in sorted(data.keys()):
+    cat = data[name]
+    save_path = cat.get('savePath', '') or '(default)'
+    print(f'  {name:<25} {save_path}')
+"
+}
+
+cmd_set_category() {
+    local input="${1:-}" category="${2:-}"
+    [[ -z "$input" || -z "$category" ]] && die "Usage: qbt set-category <hash|name> <category>"
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    qbt_post "/api/v2/torrents/setCategory" "hashes=${hash}&category=${category}" \
+        || die "Failed to set category"
+
+    ok "  Category set to '${category}'"
+}
+
+cmd_move() {
+    local input="${1:-}" location="${2:-}"
+    [[ -z "$input" || -z "$location" ]] && die "Usage: qbt move <hash|name> <path>"
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    qbt_post "/api/v2/torrents/setLocation" "hashes=${hash}&location=${location}" \
+        || die "Failed to move torrent"
+
+    ok "  Moving torrent to: ${location}"
+}
+
 cmd_help() {
     show_version "qbt"
     cat <<'HELP'
@@ -539,6 +613,10 @@ main() {
         files)              cmd_files "$@" ;;
         trackers)           cmd_trackers "$@" ;;
         peers)              cmd_peers "$@" ;;
+        priority|prio)      cmd_priority "$@" ;;
+        categories|cats)    cmd_categories ;;
+        set-category)       cmd_set_category "$@" ;;
+        move|mv)            cmd_move "$@" ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
