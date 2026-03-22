@@ -853,6 +853,70 @@ for t in sorted(data, key=lambda x: x.get('id', 0)):
 " 2>/dev/null
 }
 
+cmd_tag_add() {
+    local app="${1:-}" label="${2:-}"
+    [[ -z "$app" || -z "$label" ]] && die "Usage: arr tag-add <sonarr|radarr|lidarr|prowlarr> <label>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr|prowlarr) ;;
+        *) die "Tags not supported for $app" ;;
+    esac
+
+    local payload
+    payload=$(LABEL="$label" python3 -c "
+import json, os
+print(json.dumps({'label': os.environ['LABEL']}))
+")
+
+    info "Creating tag '$label' on $app..."
+    local response
+    response=$(arr_api "$app" POST "/tag" "$payload") || die "Failed to create tag on $app"
+    echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f\"    Created tag: id={d.get('id', '?')} label={d.get('label', '?')}\")
+" 2>/dev/null
+    ok "  Done."
+}
+
+cmd_indexers() {
+    local app="${1:-}"
+    local apps_to_check=()
+
+    if [[ -n "$app" ]]; then
+        apps_to_check=("$(resolve_app "$app")")
+    else
+        apps_to_check=("${ALL_APPS[@]}")
+    fi
+
+    for app in "${apps_to_check[@]}"; do
+        local response
+        response=$(arr_api "$app" GET "/indexer" 2>/dev/null) || {
+            warn "  $app: could not connect"
+            continue
+        }
+
+        echo -e "  ${BOLD}${app}${RESET} — indexers:"
+        echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('    (none)')
+    sys.exit()
+print(f'    {\"ID\":<6} {\"Name\":<30} {\"Protocol\":<12} {\"Enabled\"}')
+print(f'    {\"--\":<6} {\"----\":<30} {\"--------\":<12} {\"-------\"}')
+for ix in data:
+    iid = ix.get('id', '?')
+    name = ix.get('name', '?')
+    proto = ix.get('protocol', '?')
+    enabled = 'yes' if ix.get('enableRss', ix.get('enable', False)) else 'no'
+    print(f'    {iid:<6} {name:<30} {proto:<12} {enabled}')
+" 2>/dev/null
+        echo ""
+    done
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "arr"
@@ -891,6 +955,13 @@ LIBRARY MANAGEMENT:
 HISTORY:
   activity [app]                Recent download/import activity
 
+CONFIGURATION:
+  profiles <app>                List quality profiles
+  rootfolders <app>             List root folders with free space
+  tags <app>                    List tags
+  tag-add <app> <label>         Create a new tag
+  indexers [app]                List indexers (all apps if omitted)
+
 EXAMPLES:
   arr status                    Quick health check of all apps
   arr queue                     Show all download queues
@@ -909,6 +980,11 @@ EXAMPLES:
   arr delete sonarr 15                     Delete series ID 15 from Sonarr
   arr download s 15                        Trigger search for series ID 15
   arr rename r 42                          Rename movie files for movie ID 42
+  arr profiles sonarr            List Sonarr quality profiles
+  arr rootfolders r              List Radarr root folders
+  arr tags lidarr                List Lidarr tags
+  arr tag-add sonarr 4k          Create '4k' tag in Sonarr
+  arr indexers                   List indexers across all apps
 HELP
 }
 
@@ -939,6 +1015,8 @@ main() {
         profiles|qp)            cmd_profiles "$@" ;;
         rootfolders|rf)         cmd_rootfolders "$@" ;;
         tags)                   cmd_tags "$@" ;;
+        tag-add)                cmd_tag_add "$@" ;;
+        indexers|ix)            cmd_indexers "${1:-}" ;;
         help|--help|-h)         cmd_help ;;
         *)
             # Try as app shortcut: arr sonarr queue → arr queue sonarr
@@ -963,6 +1041,8 @@ main() {
                     profiles|qp)   cmd_profiles "$real_app" ;;
                     rootfolders|rf) cmd_rootfolders "$real_app" ;;
                     tags)          cmd_tags "$real_app" ;;
+                    tag-add)       cmd_tag_add "$real_app" "$@" ;;
+                    indexers|ix)   cmd_indexers "$real_app" ;;
                     *)             die "Unknown subcommand: $subcmd" ;;
                 esac
             else
