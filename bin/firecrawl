@@ -7,6 +7,7 @@ source "$SCRIPT_DIR/../lib/common.sh"
 
 # ── Config (loaded from ~/.config/homelab-cli/config) ────────
 FIRECRAWL_URL="${FIRECRAWL_URL:-http://localhost:3002}"
+JOB_CACHE="${HOME}/.cache/homelab-cli/firecrawl-jobs"
 
 # ── Helpers ──────────────────────────────────────────────────
 
@@ -17,6 +18,12 @@ fc_post() {
 }
 
 fc_get() { curl -s "${FIRECRAWL_URL}${1}"; }
+
+record_job() {
+    local job_id="$1" url="$2"
+    mkdir -p "$(dirname "$JOB_CACHE")"
+    echo "${job_id}|${url}|$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$JOB_CACHE"
+}
 
 # ── Commands ─────────────────────────────────────────────────
 
@@ -147,6 +154,11 @@ if not jid:
 print(f'Crawl started: {jid}')
 print(f'Check status:  firecrawl status {jid}')
 PYEOF
+
+    # Record job for tracking
+    local jid
+    jid=$(python3 -c "import sys,json; print(json.loads(sys.argv[1]).get('id',''))" "$response" 2>/dev/null || true)
+    [[ -n "$jid" ]] && record_job "$jid" "$url"
 }
 
 cmd_status() {
@@ -271,6 +283,78 @@ else:
         print(f'    {words} words')
         print()
 PYEOF
+
+    # Record batch job for tracking
+    local jid
+    jid=$(python3 -c "import sys,json; print(json.loads(sys.argv[1]).get('id',''))" "$response" 2>/dev/null || true)
+    [[ -n "$jid" ]] && record_job "$jid" "batch:${1}"
+}
+
+cmd_cancel() {
+    local job_id="${1:-}"
+    [[ -z "$job_id" ]] && die "Usage: firecrawl cancel <job_id>"
+
+    confirm_action "Cancel crawl job '$job_id'?"
+
+    local response
+    response=$(curl -s -X DELETE "${FIRECRAWL_URL}/v1/crawl/${job_id}")
+
+    python3 <<PYEOF - "$response"
+import sys, json
+try:
+    data = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+    if data.get('success') == False:
+        print(f"Error: {data.get('error', 'Unknown')}", file=sys.stderr)
+        sys.exit(1)
+except (json.JSONDecodeError, IndexError):
+    pass
+PYEOF
+
+    ok "  Cancelled job: $job_id"
+}
+
+cmd_jobs() {
+    if [[ ! -f "$JOB_CACHE" ]]; then
+        info "No tracked jobs yet. Jobs are recorded when you run crawl or batch."
+        return
+    fi
+
+    local entries
+    entries=$(tail -20 "$JOB_CACHE")
+
+    ENTRIES="$entries" FC_URL="$FIRECRAWL_URL" python3 <<'PYEOF'
+import os, json, urllib.request, sys
+
+entries = os.environ['ENTRIES'].strip().split('\n')
+fc_url = os.environ['FC_URL']
+
+print(f"{'ID':10} {'URL':52} {'STATUS':12} {'PAGES':8} {'CREATED'}")
+print('-' * 100)
+
+for line in reversed(entries):
+    parts = line.strip().split('|')
+    if len(parts) < 3:
+        continue
+    jid, url, created = parts[0], parts[1], parts[2]
+    short_id = jid[:8]
+    short_url = url[:50] + ('...' if len(url) > 50 else '')
+    created_short = created[:16].replace('T', ' ')
+
+    # Query status
+    try:
+        req = urllib.request.Request(f"{fc_url}/v1/crawl/{jid}")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+        status = data.get('status', '?')
+        completed = data.get('completed', 0)
+        total = data.get('total', 0)
+        pages = f"{completed}/{total}"
+    except Exception:
+        status = '?'
+        pages = '-'
+
+    print(f'{short_id:10} {short_url:52} {status:12} {pages:8} {created_short}')
+PYEOF
 }
 
 cmd_health() {
@@ -366,6 +450,13 @@ main() {
         extract)
             [[ $# -lt 2 ]] && { echo "Usage: firecrawl extract <url> <prompt>"; exit 1; }
             cmd_extract "$1" "$2"
+            ;;
+        cancel)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl cancel <job_id>"; exit 1; }
+            cmd_cancel "$1"
+            ;;
+        jobs)
+            cmd_jobs
             ;;
         health)   cmd_health ;;
         help|--help|-h) cmd_help ;;
