@@ -172,9 +172,9 @@
 
 ### Vault — Expanded Management
 
-- [ ] **BW-01**: Create new vault item (`vault create <name> --user <user> --pass <pass> [--uri <url>]`)
-- [ ] **BW-02**: Edit vault item field (`vault edit <name> --field <field> --value <val>`)
-- [ ] **BW-03**: Delete vault item with confirmation (`vault delete <name>`)
+- [x] **BW-01**: Create new vault item (`vault create <name> --user <user> --pass <pass> [--uri <url>]`)
+- [x] **BW-02**: Edit vault item field (`vault edit <name> --field <field> --value <val>`)
+- [x] **BW-03**: Delete vault item with confirmation (`vault delete <name>`)
 - [ ] **BW-04**: List folders (`vault folders`)
 - [ ] **BW-05**: Generate password (`vault generate [--length N]`)
 - [ ] **BW-06**: Show TOTP code for item (`vault totp <name>`)
@@ -343,9 +343,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | OVR-03 | Phase 12: Overseerr | Complete |
 | OVR-04 | Phase 12: Overseerr | Complete |
 | OVR-05 | Phase 12: Overseerr | Complete |
-| BW-01 | Phase 13: Vault | Pending |
-| BW-02 | Phase 13: Vault | Pending |
-| BW-03 | Phase 13: Vault | Pending |
+| BW-01 | Phase 13: Vault | Complete |
+| BW-02 | Phase 13: Vault | Complete |
+| BW-03 | Phase 13: Vault | Complete |
 | BW-04 | Phase 13: Vault | Pending |
 | BW-05 | Phase 13: Vault | Pending |
 | BW-06 | Phase 13: Vault | Pending |

@@ -211,7 +211,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — Item CRUD commands (create, edit, delete) + resolve_item_id helper
+- [x] 13-01-PLAN.md — Item CRUD commands (create, edit, delete) + resolve_item_id helper
 - [ ] 13-02-PLAN.md — Utility commands (folders, generate, totp) + help text update
 
 ### Phase 14: Firecrawl
@@ -269,7 +269,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
-| 13. Vault | 0/2 | Planning complete | - |
+| 13. Vault | 1/2 | In Progress|  |
 | 14. Firecrawl | 0/? | Not started | - |
 | 15. Koel | 0/? | Not started | - |
 | 16. Help Text | 0/? | Not started | - |
