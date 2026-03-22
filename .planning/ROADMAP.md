@@ -247,10 +247,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Running any CLI with `--help` or no arguments shows all available commands including every new command added in v2.0
   2. Every command listed in help text actually exists and works (no stale or missing entries)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 16-01: TBD
+- [ ] 16-01-PLAN.md — Audit all 14 CLIs: compare case statement commands to cmd_help() output, fix discrepancies
 
 ## Progress
 
@@ -274,4 +274,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 13. Vault | 2/2 | Complete    | 2026-03-22 |
 | 14. Firecrawl | 2/2 | Complete    | 2026-03-22 |
 | 15. Koel | 2/2 | Complete    | 2026-03-22 |
-| 16. Help Text | 0/? | Not started | - |
+| 16. Help Text | 0/1 | Planning complete | - |
