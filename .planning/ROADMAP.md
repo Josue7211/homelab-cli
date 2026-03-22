@@ -171,7 +171,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Queue item commands (info, delete, pause-item, resume-item, priority)
+- [x] 10-01-PLAN.md — Queue item commands (info, delete, pause-item, resume-item, priority)
 - [ ] 10-02-PLAN.md — Configuration commands (categories, limit, servers) + help text update
 
 ### Phase 11: Gluetun
@@ -263,7 +263,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 7. qBittorrent | 2/2 | Complete | 2026-03-22 |
 | 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/2 | Planning complete | - |
-| 10. SABnzbd | 0/2 | Planning complete | - |
+| 10. SABnzbd | 1/2 | In Progress|  |
 | 11. Gluetun | 0/? | Not started | - |
 | 12. Overseerr | 0/? | Not started | - |
 | 13. Vault | 0/? | Not started | - |

@@ -152,11 +152,11 @@
 
 ### SABnzbd — Expanded Management
 
-- [ ] **SAB-01**: Show NZB detail in queue (`sab info <nzo_id>`)
-- [ ] **SAB-02**: Delete item from queue with confirmation (`sab delete <nzo_id>`)
-- [ ] **SAB-03**: Pause single item (`sab pause-item <nzo_id>`)
-- [ ] **SAB-04**: Resume single item (`sab resume-item <nzo_id>`)
-- [ ] **SAB-05**: Set queue priority (`sab priority <nzo_id> <high|normal|low|force>`)
+- [x] **SAB-01**: Show NZB detail in queue (`sab info <nzo_id>`)
+- [x] **SAB-02**: Delete item from queue with confirmation (`sab delete <nzo_id>`)
+- [x] **SAB-03**: Pause single item (`sab pause-item <nzo_id>`)
+- [x] **SAB-04**: Resume single item (`sab resume-item <nzo_id>`)
+- [x] **SAB-05**: Set queue priority (`sab priority <nzo_id> <high|normal|low|force>`)
 - [ ] **SAB-06**: List categories (`sab categories`)
 - [ ] **SAB-07**: Set speed limit (`sab limit <speed_KB|0>`)
 - [ ] **SAB-08**: Show server stats (`sab servers`)
@@ -324,11 +324,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | OPN-06 | Phase 9: OPNsense | Complete |
 | OPN-07 | Phase 9: OPNsense | Complete |
 | OPN-08 | Phase 9: OPNsense | Complete |
-| SAB-01 | Phase 10: SABnzbd | Pending |
-| SAB-02 | Phase 10: SABnzbd | Pending |
-| SAB-03 | Phase 10: SABnzbd | Pending |
-| SAB-04 | Phase 10: SABnzbd | Pending |
-| SAB-05 | Phase 10: SABnzbd | Pending |
+| SAB-01 | Phase 10: SABnzbd | Complete |
+| SAB-02 | Phase 10: SABnzbd | Complete |
+| SAB-03 | Phase 10: SABnzbd | Complete |
+| SAB-04 | Phase 10: SABnzbd | Complete |
+| SAB-05 | Phase 10: SABnzbd | Complete |
 | SAB-06 | Phase 10: SABnzbd | Pending |
 | SAB-07 | Phase 10: SABnzbd | Pending |
 | SAB-08 | Phase 10: SABnzbd | Pending |
