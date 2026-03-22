@@ -195,10 +195,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can bulk-approve all pending requests with a single command
   2. User can list users with quotas, view request details, list services, and view notification settings
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — Bulk approve (approve-all) + user listing (users) + request detail (request-detail)
+- [ ] 12-02-PLAN.md — Service listing (services) + notification agents (notifications) + help text update
 
 ### Phase 13: Vault
 **Goal**: Users can perform full CRUD on vault items, manage folders, generate passwords, and retrieve TOTP codes from the command line
@@ -266,7 +267,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
-| 12. Overseerr | 0/? | Not started | - |
+| 12. Overseerr | 0/2 | Planning complete | - |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
 | 15. Koel | 0/? | Not started | - |
