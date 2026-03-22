@@ -231,6 +231,87 @@ if limit < total:
 "
 }
 
+cmd_dns() {
+    header "DNS CONFIGURATION"
+    local dns
+    dns=$(gluetun_get "/v1/dns/settings") || die "Can't get DNS settings"
+    echo "$dns" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+# Handle both nested (dns: {...}) and flat structures
+dns = d.get('dns', d)
+doh = dns.get('doh', dns)
+# Provider info
+providers = doh.get('providers', dns.get('providers', []))
+if isinstance(providers, list):
+    providers = ', '.join(providers) if providers else '(none)'
+print(f'  DoH Providers:    {providers}')
+# Upstream DNS
+addresses = dns.get('addresses', dns.get('server_addresses', []))
+if isinstance(addresses, list):
+    addresses = ', '.join(addresses) if addresses else '(default)'
+print(f'  DNS Addresses:    {addresses}')
+# Keep nameserver
+keep = dns.get('keep_nameserver', dns.get('keepNameserver', '?'))
+print(f'  Keep Nameserver:  {keep}')
+# Block lists
+block_malicious = dns.get('block_malicious', dns.get('blockMalicious', '?'))
+block_surveillance = dns.get('block_surveillance', dns.get('blockSurveillance', '?'))
+block_ads = dns.get('block_ads', dns.get('blockAds', '?'))
+print(f'  Block Malicious:  {block_malicious}')
+print(f'  Block Surveillance: {block_surveillance}')
+print(f'  Block Ads:        {block_ads}')
+"
+}
+
+cmd_ports() {
+    header "PORT FORWARDING"
+    # Try v1 portforwarding endpoint first
+    local ports
+    ports=$(gluetun_get "/v1/portforwarding") 2>/dev/null
+    if [[ -n "$ports" ]]; then
+        echo "$ports" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+# Handle various response structures
+ports = d.get('ports', d.get('forwarded_ports', []))
+if isinstance(ports, list) and ports:
+    for p in ports:
+        if isinstance(p, dict):
+            port_num = p.get('port', p.get('external_port', '?'))
+            proto = p.get('protocol', 'tcp+udp')
+            print(f'  Port {port_num} ({proto})')
+        else:
+            print(f'  Port {p}')
+elif isinstance(d.get('port', None), int) and d['port'] > 0:
+    print(f'  Port {d[\"port\"]}')
+else:
+    # Try checking if forwarding is just not enabled
+    enabled = d.get('enabled', d.get('provider', None))
+    if enabled is False or enabled is None:
+        print('  Port forwarding not active')
+    else:
+        print('  No ports currently forwarded')
+" 2>/dev/null && return 0
+    fi
+    # Fallback to legacy endpoint
+    local legacy
+    legacy=$(gluetun_get "/v1/openvpn/portforwarded") 2>/dev/null
+    if [[ -n "$legacy" ]]; then
+        echo "$legacy" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+p = d.get('port', 0)
+if p and p > 0:
+    print(f'  Port {p} (forwarded)')
+else:
+    print('  Port forwarding not active')
+"
+    else
+        echo "  Port forwarding not active"
+    fi
+}
+
 cmd_help() {
     show_version "gluetun"
     cat <<'HELP'
@@ -244,6 +325,10 @@ STATUS:
   status                      VPN status, public IP, and forwarded port
   ip                          Show current public IP
   port                        Show forwarded port
+  provider                    VPN provider, protocol, and server selection
+  servers [filter]            List available servers (filter by region/country)
+  dns                         DNS-over-HTTPS configuration
+  ports                       Port forwarding status
 
 CONTROL:
   start                       Start the VPN
@@ -253,7 +338,10 @@ CONTROL:
 EXAMPLES:
   gluetun status              Full VPN status overview
   gluetun ip                  Quick IP check
-  gluetun port                Check forwarded port
+  gluetun provider            Show VPN provider details
+  gluetun servers us          List US servers
+  gluetun dns                 Show DNS configuration
+  gluetun ports               Check forwarded ports
   gluetun restart             Reconnect the VPN
 HELP
 }
@@ -276,6 +364,8 @@ main() {
         restart)            cmd_restart ;;
         provider)           cmd_provider ;;
         servers)            cmd_servers "$1" ;;
+        dns)                cmd_dns ;;
+        ports)              cmd_ports ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
