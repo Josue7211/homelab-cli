@@ -157,7 +157,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 09-01-PLAN.md — Firewall rule commands (rule-add, rule-rm, rule-toggle) + alias creation (alias-add) + apply
+- [x] 09-01-PLAN.md — Firewall rule commands (rule-add, rule-rm, rule-toggle) + alias creation (alias-add) + apply
 - [ ] 09-02-PLAN.md — DHCP static lease (dhcp-add) + VPN status (vpn) + traffic stats (traffic) + help text update
 
 ### Phase 10: SABnzbd

@@ -141,13 +141,13 @@
 
 ### OPNsense — Expanded Management
 
-- [ ] **OPN-01**: Create firewall rule (`opnsense rule-add --src <ip> --dst <ip> --port <port> --action <pass|block>`)
-- [ ] **OPN-02**: Delete firewall rule with confirmation (`opnsense rule-rm <uuid>`)
-- [ ] **OPN-03**: Enable/disable firewall rule (`opnsense rule-toggle <uuid>`)
-- [ ] **OPN-04**: Create firewall alias (`opnsense alias-add <name> <type> <content>`)
+- [x] **OPN-01**: Create firewall rule (`opnsense rule-add --src <ip> --dst <ip> --port <port> --action <pass|block>`)
+- [x] **OPN-02**: Delete firewall rule with confirmation (`opnsense rule-rm <uuid>`)
+- [x] **OPN-03**: Enable/disable firewall rule (`opnsense rule-toggle <uuid>`)
+- [x] **OPN-04**: Create firewall alias (`opnsense alias-add <name> <type> <content>`)
 - [ ] **OPN-05**: Add DHCP static mapping (`opnsense dhcp-add <mac> <ip> <hostname>`)
 - [ ] **OPN-06**: List WireGuard/OpenVPN tunnels (`opnsense vpn`)
-- [ ] **OPN-07**: Apply pending firewall changes (`opnsense apply`)
+- [x] **OPN-07**: Apply pending firewall changes (`opnsense apply`)
 - [ ] **OPN-08**: Show traffic graphs/stats (`opnsense traffic`)
 
 ### SABnzbd — Expanded Management
@@ -316,13 +316,13 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | AG-06 | Phase 8: AdGuard | Complete |
 | AG-07 | Phase 8: AdGuard | Complete |
 | AG-08 | Phase 8: AdGuard | Complete |
-| OPN-01 | Phase 9: OPNsense | Pending |
-| OPN-02 | Phase 9: OPNsense | Pending |
-| OPN-03 | Phase 9: OPNsense | Pending |
-| OPN-04 | Phase 9: OPNsense | Pending |
+| OPN-01 | Phase 9: OPNsense | Complete |
+| OPN-02 | Phase 9: OPNsense | Complete |
+| OPN-03 | Phase 9: OPNsense | Complete |
+| OPN-04 | Phase 9: OPNsense | Complete |
 | OPN-05 | Phase 9: OPNsense | Pending |
 | OPN-06 | Phase 9: OPNsense | Pending |
-| OPN-07 | Phase 9: OPNsense | Pending |
+| OPN-07 | Phase 9: OPNsense | Complete |
 | OPN-08 | Phase 9: OPNsense | Pending |
 | SAB-01 | Phase 10: SABnzbd | Pending |
 | SAB-02 | Phase 10: SABnzbd | Pending |
