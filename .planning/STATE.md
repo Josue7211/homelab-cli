@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 13-02-PLAN.md (Vault utilities - folders, generate, totp)
-last_updated: "2026-03-22T12:03:33.116Z"
+last_updated: "2026-03-22T12:06:47.838Z"
 progress:
   total_phases: 16
   completed_phases: 13
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Current Position
 
-Phase: 13 (vault) — EXECUTING
-Plan: 2 of 2
+Phase: 14
+Plan: Not started
 
 ## Performance Metrics
 
