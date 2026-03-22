@@ -376,23 +376,32 @@ QUEUE:
   resume                      Resume the entire queue
 
 QUEUE MANAGEMENT:
-  info <nzo_id>               Detailed info for a queue item
-  delete <nzo_id> [--del-files]  Remove item from queue
+  info <nzo_id>               Show detailed info for a queue item
+  delete <nzo_id> [--del-files]  Delete item from queue (with confirmation)
   pause-item <nzo_id>         Pause a single queue item
   resume-item <nzo_id>        Resume a paused queue item
   priority <nzo_id> <level>   Set item priority (stop/low/normal/high/force)
 
+CONFIGURATION:
+  categories                  List download categories
+  limit [speed_KB]            Show or set global speed limit (0=unlimited, or %)
+  servers                     List configured news servers
+
 EXAMPLES:
   sab status
   sab queue                   Show active downloads
+  sab info SABnzbd_nzo_abc123 Show item details
+  sab pause-item SABnzbd_nzo_abc123  Pause specific download
+  sab resume-item SABnzbd_nzo_abc123 Resume specific download
+  sab priority SABnzbd_nzo_abc123 high  Set to high priority
+  sab delete SABnzbd_nzo_abc123       Delete from queue
+  sab delete SABnzbd_nzo_abc123 --del-files  Delete with files
+  sab categories              List all categories
+  sab limit                   Show current speed limit
+  sab limit 5000              Limit to 5000 KB/s
+  sab limit 0                 Remove speed limit
+  sab servers                 Show news server connections
   sab history 50              Show last 50 completed downloads
-  sab pause                   Pause all downloads
-  sab resume                  Resume downloading
-  sab speed                   Check current speed
-  sab add "https://..."       Add NZB by URL
-  sab info SABnzbd_nzo_abc    Show details for a queue item
-  sab delete SABnzbd_nzo_abc  Remove item (with confirmation)
-  sab priority SABnzbd_nzo_abc high  Set item to high priority
 HELP
 }
 
