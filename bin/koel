@@ -457,8 +457,11 @@ STATUS:
 
 LIBRARY:
   search <query>        Search songs, albums, and artists
-  playlists             List all playlists with song counts
-  recent                Show recently played tracks (last 20)
+  playlists             List all playlists
+  recent                Show recently played tracks
+  stats                 Show library statistics
+  albums [artist]       Browse albums (optionally filter by artist)
+  artists               List all artists
 
 DEPLOYMENT:
   deploy                Redeploy the music stack (pull images + prune)
@@ -481,11 +484,14 @@ DATABASE:
 
 EXAMPLES:
   koel status
+  koel search "bohemian rhapsody"
+  koel albums "Pink Floyd"
+  koel recent
+  koel stats
+  koel playlists
   koel logs 200
   koel artisan migrate --force
-  koel artisan koel:scan --verbose
   koel deploy
-  koel scan
 HELP
 }
 
