@@ -418,6 +418,59 @@ except:
     fi
 }
 
+cmd_alias_add() {
+    [[ $# -lt 3 ]] && die "Usage: opnsense alias-add <name> <type:host|network|port> <content>"
+    [[ "$2" =~ ^(host|network|port)$ ]] || die "Type must be: host, network, or port"
+    local name="$1" atype="$2" content="$3"
+    local payload
+    payload=$(NAME="$name" ATYPE="$atype" CONTENT="$content" python3 -c "
+import json, os
+print(json.dumps({'alias': {
+    'name': os.environ['NAME'],
+    'type': os.environ['ATYPE'],
+    'content': os.environ['CONTENT'],
+    'description': '',
+    'enabled': '1'
+}}))
+")
+    local resp
+    resp=$(opn_post "/firewall/alias/addItem" "$payload")
+    local uuid
+    uuid=$(echo "$resp" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('uuid', ''))
+except:
+    print('')
+" 2>/dev/null)
+    if [[ -n "$uuid" ]]; then
+        ok "  Alias added: $name ($atype) -> $content"
+    else
+        die "Failed to add alias"
+    fi
+}
+
+cmd_apply() {
+    info "  Applying firewall changes..."
+    local resp
+    resp=$(opn_post "/firewall/filter/apply" "{}")
+    local status
+    status=$(echo "$resp" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('status', ''))
+except:
+    print('')
+" 2>/dev/null)
+    if [[ -n "$status" ]]; then
+        ok "  Firewall changes applied successfully"
+    else
+        die "Failed to apply firewall changes"
+    fi
+}
+
 cmd_help() {
     show_version "opnsense"
     cat <<'HELP'
@@ -440,6 +493,11 @@ NETWORK:
 FIREWALL:
   rules [filter]                  Firewall rules (optional text filter)
   aliases                         Firewall aliases
+  rule-add <desc> <act> <if> <src> <dst>  Add a firewall rule
+  rule-rm <uuid>                  Delete a firewall rule
+  rule-toggle <uuid>              Enable/disable a firewall rule
+  alias-add <name> <type> <content>  Add a firewall alias
+  apply                           Apply pending firewall changes
 
 SERVICES:
   services                        List all services and their status
@@ -461,6 +519,10 @@ EXAMPLES:
   opnsense firmware
   opnsense backup
   opnsense arp
+  opnsense rule-add "Allow SSH" pass lan 10.0.0.0/24 any
+  opnsense rule-rm abc123-uuid
+  opnsense alias-add myservers host 10.0.0.5,10.0.0.6
+  opnsense apply
 HELP
 }
 
@@ -490,6 +552,8 @@ main() {
         rule-add)                   cmd_rule_add "$@" ;;
         rule-rm)                    cmd_rule_rm "$1" ;;
         rule-toggle)                cmd_rule_toggle "$1" ;;
+        alias-add)                  cmd_alias_add "$@" ;;
+        apply)                      cmd_apply ;;
         help|--help|-h)             cmd_help ;;
         *)
             err "Unknown command: $cmd"
