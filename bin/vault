@@ -352,8 +352,11 @@ Quick access to Vaultwarden secrets
 USAGE:
   vault <command> [args...]
 
-LOOKUP:
+STATUS:
   status                Check vault status (locked/unlocked)
+  sync                  Sync vault with server
+
+LOOKUP:
   get <name>            Get password by entry name
   user <name>           Get username by entry name
   item <name>           Show full item details
@@ -364,11 +367,14 @@ ITEM MANAGEMENT:
   create <name> <user> <pass> [--url URL] [--folder FOLDER]
                         Create a new login item
   edit <id|name> [--username U] [--password P] [--url URL] [--notes N]
-                        Edit fields on an existing item
-  delete|rm <id|name>   Delete an item (with confirmation)
+                        Edit an existing item
+  delete <id|name>      Delete item (with confirmation)
 
-SYNC:
-  sync                  Sync vault
+UTILITIES:
+  folders               List all folders
+  generate [--length N] [--no-symbols] [--numbers-only]
+                        Generate a password (default: 20 chars)
+  totp <id|name>        Show TOTP code for item
 
 EXAMPLES:
   vault status
@@ -376,7 +382,10 @@ EXAMPLES:
   vault search proxmox
   vault create "New Service" admin s3cret --url https://svc.local
   vault edit "New Service" --password newpass123
-  vault delete "Old Service"
+  vault delete "Old Entry"
+  vault folders
+  vault generate --length 32
+  vault totp "GitHub"
 
 NOTE:
   Vault must be unlocked first: bw unlock
