@@ -601,21 +601,32 @@ DASHBOARD:
 
 NETWORK:
   dhcp                            DHCP leases
+  dhcp-add <iface> <ip> <mac>     Add static DHCP lease
   arp                             ARP table
   dns                             Unbound local DNS entries
 
 FIREWALL:
   rules [filter]                  Firewall rules (optional text filter)
-  aliases                         Firewall aliases
-  rule-add <desc> <act> <if> <src> <dst>  Add a firewall rule
-  rule-rm <uuid>                  Delete a firewall rule
-  rule-toggle <uuid>              Enable/disable a firewall rule
-  alias-add <name> <type> <content>  Add a firewall alias
+  rule-add <desc> <action> <iface> <src> <dst>
+                                  Add firewall rule (run apply after)
+  rule-rm <uuid>                  Delete firewall rule (with confirmation)
+  rule-toggle <uuid>              Enable/disable firewall rule
   apply                           Apply pending firewall changes
+
+ALIASES:
+  aliases                         List firewall aliases
+  alias-add <name> <type> <content>
+                                  Add alias (type: host|network|port)
+
+VPN:
+  vpn                             OpenVPN and IPsec tunnel status
 
 SERVICES:
   services                        List all services and their status
   restart <service>               Restart a service
+
+DIAGNOSTICS:
+  traffic                         Live interface traffic rates
 
 FIRMWARE:
   firmware                        Firmware version and available upgrades
@@ -626,17 +637,14 @@ BACKUP:
 
 EXAMPLES:
   opnsense status
-  opnsense dhcp
   opnsense rules "lan"
-  opnsense services
-  opnsense restart unbound
-  opnsense firmware
-  opnsense backup
-  opnsense arp
-  opnsense rule-add "Allow SSH" pass lan 10.0.0.0/24 any
-  opnsense rule-rm abc123-uuid
-  opnsense alias-add myservers host 10.0.0.5,10.0.0.6
+  opnsense rule-add "Allow SSH" pass lan 192.168.1.0/24 any
+  opnsense rule-toggle abc12345-...
   opnsense apply
+  opnsense alias-add my_servers host "192.168.1.10,192.168.1.11"
+  opnsense dhcp-add lan 192.168.1.50 AA:BB:CC:DD:EE:FF
+  opnsense vpn
+  opnsense traffic
 HELP
 }
 
