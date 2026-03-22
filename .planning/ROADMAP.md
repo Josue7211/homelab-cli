@@ -221,10 +221,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can scrape a URL with custom wait time and headers, and batch scrape multiple URLs
   2. User can crawl with depth and filter options, cancel running jobs, and list recent jobs
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 14-01: TBD
+- [ ] 14-01-PLAN.md — Enhanced scrape (--wait, --headers) + batch scrape + enhanced crawl (--depth, --include, --exclude)
+- [ ] 14-02-PLAN.md — Job management (cancel, jobs) + help text update
 
 ### Phase 15: Koel
 **Goal**: Users can search, browse, and view stats for their music library via the Koel API from the command line
@@ -270,6 +271,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
 | 13. Vault | 2/2 | Complete    | 2026-03-22 |
-| 14. Firecrawl | 0/? | Not started | - |
+| 14. Firecrawl | 0/2 | Planning complete | - |
 | 15. Koel | 0/? | Not started | - |
 | 16. Help Text | 0/? | Not started | - |
