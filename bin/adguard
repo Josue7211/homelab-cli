@@ -381,6 +381,59 @@ for r in rules:
 "
 }
 
+cmd_dhcp() {
+    header "DHCP LEASES"
+    ag_api GET /dhcp/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+
+# DHCP server status
+cfg = d.get('static_leases', [])
+enabled = d.get('enabled', False)
+iface = d.get('interface_name', '?')
+status = '\033[32mEnabled\033[0m' if enabled else '\033[31mDisabled\033[0m'
+print(f'  DHCP Server: {status}  (interface: {iface})')
+print()
+
+# Static leases
+static = d.get('static_leases', [])
+print('  STATIC LEASES')
+print(f'  {\"─\"*60}')
+if not static:
+    print('  No static leases.')
+else:
+    print(f'  {\"Hostname\":<25} {\"MAC\":<20} {\"IP\"}')
+    print(f'  {\"─\"*24} {\"─\"*19} {\"─\"*15}')
+    for l in static:
+        print(f'  {l.get(\"hostname\",\"?\"):<25} {l.get(\"mac\",\"?\"):<20} {l.get(\"ip\",\"?\")}')
+print()
+
+# Dynamic leases
+leases = d.get('leases', [])
+print('  DYNAMIC LEASES')
+print(f'  {\"─\"*60}')
+if not leases:
+    print('  No dynamic leases.')
+else:
+    print(f'  {\"Hostname\":<25} {\"MAC\":<20} {\"IP\":<16} {\"Expiry\"}')
+    print(f'  {\"─\"*24} {\"─\"*19} {\"─\"*15} {\"─\"*20}')
+    for l in leases:
+        expiry = l.get('expires', '?')
+        if 'T' in str(expiry):
+            expiry = str(expiry)[:19].replace('T', ' ')
+        print(f'  {l.get(\"hostname\",\"?\"):<25} {l.get(\"mac\",\"?\"):<20} {l.get(\"ip\",\"?\"):<16} {expiry}')
+print(f'\n  Static: {len(static)}  Dynamic: {len(leases)}')
+"
+}
+
+cmd_dhcp_add() {
+    [[ $# -lt 3 ]] && die "Usage: adguard dhcp-add <ip> <mac> <hostname>"
+    local ip="$1" mac="$2" hostname="$3"
+    ag_api POST /dhcp/add_static_lease -d "{\"ip\":\"$ip\",\"mac\":\"$mac\",\"hostname\":\"$hostname\"}"
+    local rc=$?
+    [[ $rc -eq 0 ]] && ok "  Added static lease: $hostname ($mac) -> $ip" || die "Failed to add static lease"
+}
+
 cmd_help() {
     show_version "adguard"
     cat <<'HELP'
@@ -453,6 +506,8 @@ main() {
         top-clients)            cmd_top_clients ;;
         protect-on)             cmd_protect_on ;;
         protect-off)            cmd_protect_off ;;
+        dhcp)                   cmd_dhcp ;;
+        dhcp-add)               cmd_dhcp_add "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
