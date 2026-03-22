@@ -846,6 +846,49 @@ for group, keys in groups.items():
 "
 }
 
+cmd_optimize() {
+    header "DATABASE OPTIMIZATION"
+
+    info "Triggering database optimization..."
+    plex_api "/library/optimize?async=1" PUT > /dev/null \
+        || die "Failed to trigger optimization"
+    ok "Optimization started (running in background)."
+}
+
+cmd_empty_trash() {
+    local library_id="${1:-}"
+
+    if [[ -n "$library_id" ]]; then
+        confirm_action "Empty trash for library ${library_id}?"
+        info "Emptying trash for library ${library_id}..."
+        plex_api "/library/sections/${library_id}/emptyTrash" PUT > /dev/null \
+            || die "Failed to empty trash for library ${library_id}"
+        ok "Trash emptied for library ${library_id}."
+    else
+        confirm_action "Empty trash for ALL libraries?"
+
+        local response
+        response=$(plex_api "/library/sections") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+        local ids
+        ids=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+for lib in data.get('Directory', []):
+    print(lib.get('key', ''))
+" 2>/dev/null)
+
+        while IFS= read -r lid; do
+            [[ -z "$lid" ]] && continue
+            plex_api "/library/sections/${lid}/emptyTrash" PUT > /dev/null 2>&1 && \
+                ok "  Trash emptied: library ${lid}" || \
+                warn "  Failed: library ${lid}"
+        done <<< "$ids"
+
+        ok "Done."
+    fi
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "plex"
@@ -860,11 +903,23 @@ SERVER:
   status                        Server info and active stream count
   streams                       Current active streams (detailed)
   scan [library_id]             Trigger library scan (all or specific)
+  settings                      Show server preferences/settings
 
 LIBRARY:
   libraries                     List all libraries with stats
   recent [count]                Recently added items (default: 15)
   search <query>                Search across all libraries
+  playlists                     List all playlists
+  collections [library_id]      List collections (all or specific library)
+
+STREAMS:
+  transcode                     Bandwidth and transcode details for active streams
+  kill <session_id>             Terminate a stream (with confirmation)
+
+MANAGEMENT:
+  shared                        List shared users
+  optimize                      Optimize database (runs async)
+  empty-trash [library_id]      Empty trash (all or specific library, with confirmation)
 
 TAUTULLI (requires Tautulli):
   history [count]               Playback history (default: 20)
@@ -873,12 +928,19 @@ TAUTULLI (requires Tautulli):
 EXAMPLES:
   plex status                   Quick server overview
   plex streams                  Who's watching what
+  plex transcode                Stream quality and bandwidth
+  plex kill abc123              Stop a stream
   plex libraries                All libraries and stats
+  plex playlists                List all playlists
+  plex collections              Collections across all libraries
+  plex collections 1            Collections in library 1
+  plex shared                   Who has access to your server
+  plex settings                 View server configuration
+  plex optimize                 Optimize the database
+  plex empty-trash              Empty trash in all libraries
+  plex empty-trash 2            Empty trash in library 2
   plex recent 10                Last 10 items added
   plex history 50               Last 50 plays
-  plex users                    All connected users
-  plex scan                     Scan all libraries
-  plex scan 1                   Scan library with ID 1
   plex search "interstellar"    Find content across libraries
 HELP
 }
@@ -906,6 +968,8 @@ main() {
         transcode|tc)           cmd_transcode ;;
         kill|stop-stream)       cmd_kill "${1:-}" ;;
         settings|prefs)         cmd_settings ;;
+        optimize)               cmd_optimize ;;
+        empty-trash|trash)      cmd_empty_trash "${1:-}" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
