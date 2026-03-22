@@ -21,7 +21,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 - [ ] **Phase 9: OPNsense** - Firewall rule CRUD, aliases, DHCP mappings, VPN, and traffic stats
 - [x] **Phase 10: SABnzbd** - Queue item management, priorities, speed limits, and server stats (completed 2026-03-22)
 - [x] **Phase 11: Gluetun** - VPN provider info, server switching, DNS config, and leak testing (completed 2026-03-22)
-- [ ] **Phase 12: Overseerr** - Bulk approval, user/quota listing, request details, and service info
+- [x] **Phase 12: Overseerr** - Bulk approval, user/quota listing, request details, and service info (completed 2026-03-22)
 - [ ] **Phase 13: Vault** - Item CRUD, folder listing, password generation, and TOTP codes
 - [ ] **Phase 14: Firecrawl** - Custom scrape options, batch scrape, crawl options, and job management
 - [ ] **Phase 15: Koel** - Music search, playlists, recently played, stats, and browsing
@@ -199,7 +199,7 @@ Plans:
 
 Plans:
 - [x] 12-01-PLAN.md — Bulk approve (approve-all) + user listing (users) + request detail (request-detail)
-- [ ] 12-02-PLAN.md — Service listing (services) + notification agents (notifications) + help text update
+- [x] 12-02-PLAN.md — Service listing (services) + notification agents (notifications) + help text update
 
 ### Phase 13: Vault
 **Goal**: Users can perform full CRUD on vault items, manage folders, generate passwords, and retrieve TOTP codes from the command line
@@ -267,7 +267,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
-| 12. Overseerr | 1/2 | In Progress|  |
+| 12. Overseerr | 2/2 | Complete   | 2026-03-22 |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
 | 15. Koel | 0/? | Not started | - |
