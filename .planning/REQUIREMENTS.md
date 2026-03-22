@@ -103,9 +103,9 @@
 - [x] **JF-03**: Delete user with confirmation (`jellyfin user-rm <name>`)
 - [x] **JF-04**: List scheduled tasks (`jellyfin tasks`)
 - [x] **JF-05**: Run scheduled task (`jellyfin run-task <id>`)
-- [ ] **JF-06**: List plugins (`jellyfin plugins`)
-- [ ] **JF-07**: Show system activity log (`jellyfin activity [count]`)
-- [ ] **JF-08**: Show server info/config (`jellyfin info`)
+- [x] **JF-06**: List plugins (`jellyfin plugins`)
+- [x] **JF-07**: Show system activity log (`jellyfin activity [count]`)
+- [x] **JF-08**: Show server info/config (`jellyfin info`)
 
 ### qBittorrent — Expanded Management
 
@@ -295,9 +295,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | JF-03 | Phase 6: Jellyfin | Complete |
 | JF-04 | Phase 6: Jellyfin | Complete |
 | JF-05 | Phase 6: Jellyfin | Complete |
-| JF-06 | Phase 6: Jellyfin | Pending |
-| JF-07 | Phase 6: Jellyfin | Pending |
-| JF-08 | Phase 6: Jellyfin | Pending |
+| JF-06 | Phase 6: Jellyfin | Complete |
+| JF-07 | Phase 6: Jellyfin | Complete |
+| JF-08 | Phase 6: Jellyfin | Complete |
 | QBT-01 | Phase 7: qBittorrent | Pending |
 | QBT-02 | Phase 7: qBittorrent | Pending |
 | QBT-03 | Phase 7: qBittorrent | Pending |
