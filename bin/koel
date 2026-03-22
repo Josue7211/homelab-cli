@@ -256,6 +256,44 @@ print()
 " | format_table
 }
 
+cmd_recent() {
+    local resp
+    resp=$(koel_api GET "/api/interaction/recently-played") || die "Failed to fetch recently played"
+
+    echo "$resp" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin)
+print()
+print('  \033[1mRECENTLY PLAYED\033[0m')
+print('  ' + chr(0x2500)*55)
+
+items = data[:20] if isinstance(data, list) else []
+if not items:
+    print('  (none)')
+else:
+    for item in items:
+        # Handle both song objects and nested structures
+        if isinstance(item, dict):
+            title = item.get('title', item.get('song', {}).get('title', '?'))
+            artist = item.get('artist_name', item.get('artist', {}).get('name', '?'))
+            if artist == '?':
+                song = item.get('song', {})
+                artist = song.get('artist_name', song.get('artist', {}).get('name', '?'))
+            album = item.get('album_name', item.get('album', {}).get('name', '?'))
+            if album == '?':
+                song = item.get('song', {})
+                album = song.get('album_name', song.get('album', {}).get('name', '?'))
+            played = item.get('played_at', item.get('updated_at', item.get('created_at', '-')))
+            if played and played != '-':
+                played = played.replace('T', ' ')[:19]
+            print(f'  {title} | {artist} | {album} | {played}')
+        else:
+            print(f'  Song ID: {item}')
+print()
+"
+}
+
 cmd_help() {
     show_version "koel"
     cat <<'HELP'
@@ -267,6 +305,11 @@ USAGE:
 STATUS:
   status                Show Koel health and container status
   open                  Open Koel in browser
+
+LIBRARY:
+  search <query>        Search songs, albums, and artists
+  playlists             List all playlists with song counts
+  recent                Show recently played tracks (last 20)
 
 DEPLOYMENT:
   deploy                Redeploy the music stack (pull images + prune)
@@ -319,6 +362,7 @@ main() {
         open)           cmd_open ;;
         search)         cmd_search "$@" ;;
         playlists)      cmd_playlists ;;
+        recent)         cmd_recent ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
