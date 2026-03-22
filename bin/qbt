@@ -560,6 +560,66 @@ cmd_move() {
     ok "  Moving torrent to: ${location}"
 }
 
+cmd_limit_dl() {
+    local speed="${1:-}"
+
+    if [[ -z "$speed" ]]; then
+        # Show current limit
+        local limit
+        limit=$(qbt_get "/api/v2/transfer/downloadLimit") || die "Can't get download limit"
+        if [[ "$limit" == "0" ]]; then
+            echo "  Download limit: unlimited"
+        else
+            echo "  Download limit: ${limit} B/s ($(echo "$limit" | python3 -c "
+import sys
+b = int(sys.stdin.read().strip())
+for u in ['B/s','KB/s','MB/s','GB/s']:
+    if b < 1024: print(f'{b:.1f} {u}'); break
+    b /= 1024
+"))"
+        fi
+    else
+        # Set limit (0 = unlimited)
+        qbt_post "/api/v2/transfer/setDownloadLimit" "limit=${speed}" \
+            || die "Failed to set download limit"
+        if [[ "$speed" == "0" ]]; then
+            ok "  Download limit removed (unlimited)"
+        else
+            ok "  Download limit set to ${speed} B/s"
+        fi
+    fi
+}
+
+cmd_limit_ul() {
+    local speed="${1:-}"
+
+    if [[ -z "$speed" ]]; then
+        # Show current limit
+        local limit
+        limit=$(qbt_get "/api/v2/transfer/uploadLimit") || die "Can't get upload limit"
+        if [[ "$limit" == "0" ]]; then
+            echo "  Upload limit: unlimited"
+        else
+            echo "  Upload limit: ${limit} B/s ($(echo "$limit" | python3 -c "
+import sys
+b = int(sys.stdin.read().strip())
+for u in ['B/s','KB/s','MB/s','GB/s']:
+    if b < 1024: print(f'{b:.1f} {u}'); break
+    b /= 1024
+"))"
+        fi
+    else
+        # Set limit (0 = unlimited)
+        qbt_post "/api/v2/transfer/setUploadLimit" "limit=${speed}" \
+            || die "Failed to set upload limit"
+        if [[ "$speed" == "0" ]]; then
+            ok "  Upload limit removed (unlimited)"
+        else
+            ok "  Upload limit set to ${speed} B/s"
+        fi
+    fi
+}
+
 cmd_help() {
     show_version "qbt"
     cat <<'HELP'
@@ -580,15 +640,35 @@ TORRENTS:
   resume <hash|all>           Resume torrent(s)
   delete <hash> [--files]     Delete torrent (optionally delete files)
 
+INSPECTION:
+  info <hash|name>            Detailed torrent info (size, ratio, seeds, paths)
+  files <hash|name>           List files with size, progress, priority
+  trackers <hash|name>        List trackers with tier, status, seed/peer counts
+  peers <hash|name>           List connected peers with client, progress, speeds
+
+MANAGEMENT:
+  priority <hash|name> <idx> <prio>  Set file priority (0=skip,1=normal,6=high,7=max)
+  categories                  List all categories with save paths
+  set-category <hash|name> <cat>     Assign torrent to category
+  move <hash|name> <path>     Move torrent files to new location
+
+LIMITS:
+  limit-dl [bytes/s]          Show or set global download limit (0=unlimited)
+  limit-ul [bytes/s]          Show or set global upload limit (0=unlimited)
+
 EXAMPLES:
-  qbt status
-  qbt list                    List all torrents
-  qbt list downloading        Show only active downloads
-  qbt add "magnet:?xt=..."    Add a magnet link
-  qbt pause all               Pause everything
-  qbt resume all              Resume everything
-  qbt delete abc123 --files   Delete torrent and its files
-  qbt speed                   Check current speeds
+  qbt status                  Server overview
+  qbt list downloading        Show active downloads
+  qbt info <hash>             Detailed torrent metadata
+  qbt files <hash>            Show file list with priorities
+  qbt priority <hash> 0 7     Set first file to max priority
+  qbt limit-dl 5242880        Limit download to 5 MB/s
+  qbt limit-dl 0              Remove download limit
+  qbt categories              List configured categories
+  qbt set-category <hash> tv  Assign torrent to 'tv' category
+  qbt move <hash> /data/media Move torrent files
+  qbt trackers <hash>         Show tracker details
+  qbt peers <hash>            Show connected peers
 HELP
 }
 
@@ -617,6 +697,8 @@ main() {
         categories|cats)    cmd_categories ;;
         set-category)       cmd_set_category "$@" ;;
         move|mv)            cmd_move "$@" ;;
+        limit-dl)           cmd_limit_dl "$@" ;;
+        limit-ul)           cmd_limit_ul "$@" ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
