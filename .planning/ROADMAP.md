@@ -271,6 +271,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
 | 13. Vault | 2/2 | Complete    | 2026-03-22 |
-| 14. Firecrawl | 2/2 | Complete   | 2026-03-22 |
+| 14. Firecrawl | 2/2 | Complete    | 2026-03-22 |
 | 15. Koel | 0/? | Not started | - |
 | 16. Help Text | 0/? | Not started | - |
