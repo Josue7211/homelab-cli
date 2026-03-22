@@ -145,10 +145,10 @@
 - [x] **OPN-02**: Delete firewall rule with confirmation (`opnsense rule-rm <uuid>`)
 - [x] **OPN-03**: Enable/disable firewall rule (`opnsense rule-toggle <uuid>`)
 - [x] **OPN-04**: Create firewall alias (`opnsense alias-add <name> <type> <content>`)
-- [ ] **OPN-05**: Add DHCP static mapping (`opnsense dhcp-add <mac> <ip> <hostname>`)
-- [ ] **OPN-06**: List WireGuard/OpenVPN tunnels (`opnsense vpn`)
+- [x] **OPN-05**: Add DHCP static mapping (`opnsense dhcp-add <mac> <ip> <hostname>`)
+- [x] **OPN-06**: List WireGuard/OpenVPN tunnels (`opnsense vpn`)
 - [x] **OPN-07**: Apply pending firewall changes (`opnsense apply`)
-- [ ] **OPN-08**: Show traffic graphs/stats (`opnsense traffic`)
+- [x] **OPN-08**: Show traffic graphs/stats (`opnsense traffic`)
 
 ### SABnzbd — Expanded Management
 
@@ -320,10 +320,10 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | OPN-02 | Phase 9: OPNsense | Complete |
 | OPN-03 | Phase 9: OPNsense | Complete |
 | OPN-04 | Phase 9: OPNsense | Complete |
-| OPN-05 | Phase 9: OPNsense | Pending |
-| OPN-06 | Phase 9: OPNsense | Pending |
+| OPN-05 | Phase 9: OPNsense | Complete |
+| OPN-06 | Phase 9: OPNsense | Complete |
 | OPN-07 | Phase 9: OPNsense | Complete |
-| OPN-08 | Phase 9: OPNsense | Pending |
+| OPN-08 | Phase 9: OPNsense | Complete |
 | SAB-01 | Phase 10: SABnzbd | Pending |
 | SAB-02 | Phase 10: SABnzbd | Pending |
 | SAB-03 | Phase 10: SABnzbd | Pending |

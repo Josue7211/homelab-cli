@@ -158,7 +158,7 @@ Plans:
 
 Plans:
 - [x] 09-01-PLAN.md — Firewall rule commands (rule-add, rule-rm, rule-toggle) + alias creation (alias-add) + apply
-- [ ] 09-02-PLAN.md — DHCP static lease (dhcp-add) + VPN status (vpn) + traffic stats (traffic) + help text update
+- [x] 09-02-PLAN.md — DHCP static lease (dhcp-add) + VPN status (vpn) + traffic stats (traffic) + help text update
 
 ### Phase 10: SABnzbd
 **Goal**: Users can manage individual queue items, set priorities, control speed limits, and view server stats from the command line

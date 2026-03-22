@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 09-01-PLAN.md (OPNsense firewall rule management)
-last_updated: "2026-03-22T10:42:59.249Z"
+stopped_at: Completed 09-02-PLAN.md (OPNsense DHCP/VPN/traffic + help text)
+last_updated: "2026-03-22T10:47:43.996Z"
 progress:
   total_phases: 16
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -66,6 +66,7 @@ Plan: 2 of 2
 | Phase 08 P01 | 4min | 2 tasks | 1 files |
 | Phase 08 P02 | 2min | 2 tasks | 1 files |
 | Phase 09 P01 | 2min | 2 tasks | 1 files |
+| Phase 09 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,7 @@ Recent decisions affecting current work:
 - [Phase 08]: Rule removal uses python3 list filtering + full replacement POST; client lookup uses case-insensitive substring match
 - [Phase 09]: Used os.environ in python3 payloads to prevent shell injection in rule-add and alias-add
 - [Phase 09]: All rule mutation commands (rule-add, rule-rm, rule-toggle) remind user to run apply for two-phase commit workflow
+- [Phase 09]: Used os.environ pattern for dhcp-add payload; help text reorganized into 9 sections (DASHBOARD, NETWORK, FIREWALL, ALIASES, VPN, SERVICES, DIAGNOSTICS, FIRMWARE, BACKUP)
 
 ### Pending Todos
 
@@ -124,8 +126,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T10:42:59.216Z
-Stopped at: Completed 09-01-PLAN.md (OPNsense firewall rule management)
+Last session: 2026-03-22T10:47:43.956Z
+Stopped at: Completed 09-02-PLAN.md (OPNsense DHCP/VPN/traffic + help text)
 Resume with: /gsd:autonomous --from 8
 Notes:
 
