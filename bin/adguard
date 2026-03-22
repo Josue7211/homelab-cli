@@ -480,6 +480,113 @@ else:
     [[ $rc -eq 0 ]] && ok "  Removed rewrite: $domain -> $answer" || die "Failed to remove rewrite"
 }
 
+cmd_unblock() {
+    [[ $# -lt 1 ]] && die "Usage: adguard unblock <domain>"
+    local domain="$1"
+    local rule="||${domain}^"
+    local current_rules
+    current_rules=$(ag_api GET /filtering/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for r in d.get('user_rules', []):
+    print(r)
+")
+    echo "$current_rules" | grep -qF "$rule" || die "No block rule found for: $domain"
+    confirm_action "Remove block rule for '$domain'?"
+    local new_rules
+    new_rules=$(echo "$current_rules" | RULE="$rule" python3 -c "
+import sys, os, json
+rule = os.environ['RULE']
+rules = [r for r in sys.stdin.read().strip().split('\n') if r != rule]
+print(json.dumps(rules))
+")
+    ag_api POST /filtering/set_rules -d "{\"rules\":$new_rules}"
+    ok "  Removed block rule: $rule"
+}
+
+cmd_unallow() {
+    [[ $# -lt 1 ]] && die "Usage: adguard unallow <domain>"
+    local domain="$1"
+    local rule="@@||${domain}^"
+    local current_rules
+    current_rules=$(ag_api GET /filtering/status | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for r in d.get('user_rules', []):
+    print(r)
+")
+    echo "$current_rules" | grep -qF "$rule" || die "No allow rule found for: $domain"
+    confirm_action "Remove allow rule for '$domain'?"
+    local new_rules
+    new_rules=$(echo "$current_rules" | RULE="$rule" python3 -c "
+import sys, os, json
+rule = os.environ['RULE']
+rules = [r for r in sys.stdin.read().strip().split('\n') if r != rule]
+print(json.dumps(rules))
+")
+    ag_api POST /filtering/set_rules -d "{\"rules\":$new_rules}"
+    ok "  Removed allow rule: $rule"
+}
+
+cmd_clients() {
+    header "CLIENTS"
+    ag_api GET /clients | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+clients = d.get('clients', [])
+if not clients:
+    print('  No persistent clients configured.')
+    sys.exit()
+print(f'  {\"Name\":<25} {\"IDs\":<35} {\"Filtering\"}')
+print(f'  {\"─\"*24} {\"─\"*34} {\"─\"*15}')
+for c in clients:
+    name = c.get('name', '?')
+    ids = ', '.join(c.get('ids', []))
+    if len(ids) > 34:
+        ids = ids[:31] + '...'
+    filt = 'Global' if c.get('use_global_settings', True) else 'Custom'
+    blocked = c.get('blocked_services', [])
+    if blocked:
+        filt += f' (+{len(blocked)} blocked)'
+    print(f'  {name:<25} {ids:<35} {filt}')
+print(f'\n  Total: {len(clients)} clients')
+"
+}
+
+cmd_client() {
+    [[ $# -lt 1 ]] && die "Usage: adguard client <name>"
+    local name="$1"
+    header "CLIENT: $name"
+    ag_api GET /clients | CLIENT_NAME="$name" python3 -c "
+import sys, json, os
+name = os.environ['CLIENT_NAME'].lower()
+d = json.load(sys.stdin)
+match = None
+for c in d.get('clients', []):
+    if name in c.get('name', '').lower():
+        match = c; break
+if not match:
+    print(f'  No client matching: {os.environ[\"CLIENT_NAME\"]}')
+    sys.exit(1)
+c = match
+print(f'  Name:             {c.get(\"name\", \"?\")}')
+print(f'  IDs:              {\", \".join(c.get(\"ids\", []))}')
+tags = c.get('tags', [])
+print(f'  Tags:             {\", \".join(tags) if tags else \"none\"}')
+print(f'  Global Settings:  {\"Yes\" if c.get(\"use_global_settings\") else \"No\"}')
+print(f'  Filtering:        {\"Enabled\" if c.get(\"filtering_enabled\") else \"Disabled\"}')
+ss = c.get('safe_search', {})
+if isinstance(ss, dict):
+    print(f'  Safe Search:      {\"Enabled\" if ss.get(\"enabled\") else \"Disabled\"}')
+else:
+    print(f'  Safe Search:      {\"Enabled\" if ss else \"Disabled\"}')
+blocked = c.get('blocked_services', [])
+print(f'  Blocked Services: {\", \".join(blocked) if blocked else \"none\"}')
+upstreams = c.get('upstreams', [])
+print(f'  Upstreams:        {\", \".join(upstreams) if upstreams else \"default\"}')
+"
+}
+
 cmd_help() {
     show_version "adguard"
     cat <<'HELP'
@@ -507,6 +614,21 @@ RULES:
   rules                           List custom user rules
   allow <domain>                  Add domain to allowlist (custom rules)
   block <domain>                  Add domain to blocklist (custom rules)
+  unblock <domain>                Remove domain from blocklist (with confirmation)
+  unallow <domain>                Remove domain from allowlist (with confirmation)
+
+DHCP:
+  dhcp                            List DHCP leases (static and dynamic)
+  dhcp-add <ip> <mac> <hostname>  Add static DHCP lease
+
+REWRITES:
+  rewrites                        List all DNS rewrites
+  rewrite-add <domain> <answer>   Add DNS rewrite (IP or CNAME)
+  rewrite-rm <domain>             Remove DNS rewrite (with confirmation)
+
+CLIENTS:
+  clients                         List persistent clients
+  client <name>                   Show detailed client config
 
 STATS:
   top-blocked                     Top blocked domains
@@ -516,28 +638,16 @@ PROTECTION:
   protect-on                      Enable DNS protection
   protect-off                     Disable DNS protection
 
-DHCP:
-  dhcp                            Show DHCP leases (static and dynamic)
-  dhcp-add <ip> <mac> <hostname>  Add a static DHCP lease
-
-DNS REWRITES:
-  rewrites                        List all DNS rewrites
-  rewrite-add <domain> <answer>   Add a DNS rewrite (IP or CNAME)
-  rewrite-rm <domain>             Remove a DNS rewrite (with confirmation)
-
 EXAMPLES:
   adguard status
-  adguard filters
-  adguard disable-filter "Steven Black"
-  adguard log example.com
-  adguard blocked
-  adguard allow api.example.com
-  adguard top-blocked
   adguard dhcp
-  adguard dhcp-add 10.0.0.50 AA:BB:CC:DD:EE:FF mydevice
+  adguard dhcp-add 192.168.1.50 AA:BB:CC:DD:EE:FF mydevice
   adguard rewrites
-  adguard rewrite-add app.local 10.0.0.100
-  adguard rewrite-rm app.local
+  adguard rewrite-add nas.home 192.168.1.100
+  adguard rewrite-rm nas.home
+  adguard unblock example.com
+  adguard clients
+  adguard client "Living Room TV"
 HELP
 }
 
@@ -571,6 +681,10 @@ main() {
         rewrites)               cmd_rewrites ;;
         rewrite-add)            cmd_rewrite_add "$@" ;;
         rewrite-rm)             cmd_rewrite_rm "$1" ;;
+        unblock)                cmd_unblock "$1" ;;
+        unallow)                cmd_unallow "$1" ;;
+        clients)                cmd_clients ;;
+        client)                 cmd_client "$1" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
