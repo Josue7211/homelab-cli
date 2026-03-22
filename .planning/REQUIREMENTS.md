@@ -62,11 +62,11 @@
 
 ### ARR Suite — Maintenance
 
-- [ ] **ARR-10**: Show blocklist (`arr blocklist <app>`)
-- [ ] **ARR-11**: Clear blocklist with confirmation (`arr blocklist-clear <app>`)
-- [ ] **ARR-12**: Trigger backup (`arr backup <app>`)
-- [ ] **ARR-13**: View application logs (`arr logs <app> [count]`)
-- [ ] **ARR-14**: Restart application (`arr restart <app>`)
+- [x] **ARR-10**: Show blocklist (`arr blocklist <app>`)
+- [x] **ARR-11**: Clear blocklist with confirmation (`arr blocklist-clear <app>`)
+- [x] **ARR-12**: Trigger backup (`arr backup <app>`)
+- [x] **ARR-13**: View application logs (`arr logs <app> [count]`)
+- [x] **ARR-14**: Restart application (`arr restart <app>`)
 
 ### Proxmox/Homelab — VM Management
 
@@ -266,11 +266,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | ARR-07 | Phase 3: ARR Suite | Complete |
 | ARR-08 | Phase 3: ARR Suite | Complete |
 | ARR-09 | Phase 3: ARR Suite | Complete |
-| ARR-10 | Phase 3: ARR Suite | Pending |
-| ARR-11 | Phase 3: ARR Suite | Pending |
-| ARR-12 | Phase 3: ARR Suite | Pending |
-| ARR-13 | Phase 3: ARR Suite | Pending |
-| ARR-14 | Phase 3: ARR Suite | Pending |
+| ARR-10 | Phase 3: ARR Suite | Complete |
+| ARR-11 | Phase 3: ARR Suite | Complete |
+| ARR-12 | Phase 3: ARR Suite | Complete |
+| ARR-13 | Phase 3: ARR Suite | Complete |
+| ARR-14 | Phase 3: ARR Suite | Complete |
 | PVE-01 | Phase 4: Proxmox | Pending |
 | PVE-02 | Phase 4: Proxmox | Pending |
 | PVE-03 | Phase 4: Proxmox | Pending |
