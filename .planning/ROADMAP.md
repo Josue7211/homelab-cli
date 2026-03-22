@@ -19,7 +19,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 - [x] **Phase 7: qBittorrent** - Torrent details, speed limits, categories, and tracker info (completed 2026-03-22)
 - [ ] **Phase 8: AdGuard** - DHCP leases, DNS rewrites, client management, and rule removal
 - [ ] **Phase 9: OPNsense** - Firewall rule CRUD, aliases, DHCP mappings, VPN, and traffic stats
-- [ ] **Phase 10: SABnzbd** - Queue item management, priorities, speed limits, and server stats
+- [x] **Phase 10: SABnzbd** - Queue item management, priorities, speed limits, and server stats (completed 2026-03-22)
 - [ ] **Phase 11: Gluetun** - VPN provider info, server switching, DNS config, and leak testing
 - [ ] **Phase 12: Overseerr** - Bulk approval, user/quota listing, request details, and service info
 - [ ] **Phase 13: Vault** - Item CRUD, folder listing, password generation, and TOTP codes
@@ -172,7 +172,7 @@ Plans:
 
 Plans:
 - [x] 10-01-PLAN.md — Queue item commands (info, delete, pause-item, resume-item, priority)
-- [ ] 10-02-PLAN.md — Configuration commands (categories, limit, servers) + help text update
+- [x] 10-02-PLAN.md — Configuration commands (categories, limit, servers) + help text update
 
 ### Phase 11: Gluetun
 **Goal**: Users can inspect VPN status, switch servers, and verify connection security from the command line
@@ -263,7 +263,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 7. qBittorrent | 2/2 | Complete | 2026-03-22 |
 | 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/2 | Planning complete | - |
-| 10. SABnzbd | 1/2 | In Progress|  |
+| 10. SABnzbd | 2/2 | Complete   | 2026-03-22 |
 | 11. Gluetun | 0/? | Not started | - |
 | 12. Overseerr | 0/? | Not started | - |
 | 13. Vault | 0/? | Not started | - |

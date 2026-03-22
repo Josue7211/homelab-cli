@@ -157,9 +157,9 @@
 - [x] **SAB-03**: Pause single item (`sab pause-item <nzo_id>`)
 - [x] **SAB-04**: Resume single item (`sab resume-item <nzo_id>`)
 - [x] **SAB-05**: Set queue priority (`sab priority <nzo_id> <high|normal|low|force>`)
-- [ ] **SAB-06**: List categories (`sab categories`)
-- [ ] **SAB-07**: Set speed limit (`sab limit <speed_KB|0>`)
-- [ ] **SAB-08**: Show server stats (`sab servers`)
+- [x] **SAB-06**: List categories (`sab categories`)
+- [x] **SAB-07**: Set speed limit (`sab limit <speed_KB|0>`)
+- [x] **SAB-08**: Show server stats (`sab servers`)
 
 ### Gluetun — Expanded Management
 
@@ -329,9 +329,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | SAB-03 | Phase 10: SABnzbd | Complete |
 | SAB-04 | Phase 10: SABnzbd | Complete |
 | SAB-05 | Phase 10: SABnzbd | Complete |
-| SAB-06 | Phase 10: SABnzbd | Pending |
-| SAB-07 | Phase 10: SABnzbd | Pending |
-| SAB-08 | Phase 10: SABnzbd | Pending |
+| SAB-06 | Phase 10: SABnzbd | Complete |
+| SAB-07 | Phase 10: SABnzbd | Complete |
+| SAB-08 | Phase 10: SABnzbd | Complete |
 | GLU-01 | Phase 11: Gluetun | Pending |
 | GLU-02 | Phase 11: Gluetun | Pending |
 | GLU-03 | Phase 11: Gluetun | Pending |
