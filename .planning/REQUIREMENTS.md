@@ -47,10 +47,10 @@
 
 ### ARR Suite — Library Management
 
-- [ ] **ARR-01**: Add series/movie/artist to library (`arr add <app> <id> [--quality <profile>] [--root <path>]`)
-- [ ] **ARR-02**: Delete series/movie/artist from library with confirmation (`arr delete <app> <id>`)
-- [ ] **ARR-03**: Trigger manual search/download for item (`arr download <app> <id>`)
-- [ ] **ARR-04**: Trigger rename for item (`arr rename <app> <id>`)
+- [x] **ARR-01**: Add series/movie/artist to library (`arr add <app> <id> [--quality <profile>] [--root <path>]`)
+- [x] **ARR-02**: Delete series/movie/artist from library with confirmation (`arr delete <app> <id>`)
+- [x] **ARR-03**: Trigger manual search/download for item (`arr download <app> <id>`)
+- [x] **ARR-04**: Trigger rename for item (`arr rename <app> <id>`)
 
 ### ARR Suite — Configuration
 
@@ -257,10 +257,10 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PT-18 | Phase 2: Portainer | Complete |
 | PT-19 | Phase 2: Portainer | Complete |
 | PT-20 | Phase 2: Portainer | Complete |
-| ARR-01 | Phase 3: ARR Suite | Pending |
-| ARR-02 | Phase 3: ARR Suite | Pending |
-| ARR-03 | Phase 3: ARR Suite | Pending |
-| ARR-04 | Phase 3: ARR Suite | Pending |
+| ARR-01 | Phase 3: ARR Suite | Complete |
+| ARR-02 | Phase 3: ARR Suite | Complete |
+| ARR-03 | Phase 3: ARR Suite | Complete |
+| ARR-04 | Phase 3: ARR Suite | Complete |
 | ARR-05 | Phase 3: ARR Suite | Pending |
 | ARR-06 | Phase 3: ARR Suite | Pending |
 | ARR-07 | Phase 3: ARR Suite | Pending |

@@ -68,11 +68,12 @@ Plans:
   1. User can add, delete, search/download, and rename items in any ARR app library
   2. User can list quality profiles, root folders, tags, and indexers for any ARR app
   3. User can view and clear blocklists, trigger backups, view logs, and restart any ARR app
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [x] 03-01-PLAN.md — Library management commands (add, delete, download, rename)
+- [ ] 03-02-PLAN.md — Configuration listing commands (profiles, rootfolders, tags, tag-add, indexers)
+- [ ] 03-03-PLAN.md — Maintenance commands (blocklist, blocklist-clear, backup, logs, restart)
 
 ### Phase 4: Proxmox
 **Goal**: Users can manage VM configurations, snapshots, and cluster operations from the command line
@@ -248,7 +249,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/2 | Planning complete | - |
 | 2. Portainer | 0/3 | Planning complete | - |
-| 3. ARR Suite | 0/? | Not started | - |
+| 3. ARR Suite | 0/3 | Planning complete | - |
 | 4. Proxmox | 0/? | Not started | - |
 | 5. Plex | 0/? | Not started | - |
 | 6. Jellyfin | 0/? | Not started | - |
