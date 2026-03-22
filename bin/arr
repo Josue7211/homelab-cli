@@ -95,8 +95,13 @@ arr_api() {
     case "$method" in
         GET)    api_get "$url" "$key" ;;
         POST)   api_post "$url" "$key" "$data" ;;
+        PUT)    api_put "$url" "$key" "$data" ;;
         DELETE)
-            curl -sf -X DELETE "$url" -H "X-Api-Key: $key" 2>/dev/null
+            if [[ -n "$data" ]]; then
+                curl -sf -X DELETE "$url" -H "X-Api-Key: $key" -H "Content-Type: application/json" -d "$data" 2>/dev/null
+            else
+                curl -sf -X DELETE "$url" -H "X-Api-Key: $key" 2>/dev/null
+            fi
             ;;
     esac
 }
@@ -538,6 +543,142 @@ for d in json.load(sys.stdin):
 "
 }
 
+# ── Library Management ──────────────────────────────────────────
+
+cmd_add() {
+    local app="${1:-}" id="${2:-}"
+    [[ -z "$app" || -z "$id" ]] && die "Usage: arr add <sonarr|radarr|lidarr> <id> [--quality <profile_id>] [--root <path>]"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Add not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local quality_id="" root_path=""
+    shift 2
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --quality) quality_id="$2"; shift 2 ;;
+            --root)    root_path="$2"; shift 2 ;;
+            *)         die "Unknown option: $1" ;;
+        esac
+    done
+
+    # If no quality profile specified, get the first one
+    if [[ -z "$quality_id" ]]; then
+        quality_id=$(arr_api "$app" GET "/qualityprofile" | python3 -c "
+import sys, json
+profiles = json.load(sys.stdin)
+if profiles:
+    print(profiles[0]['id'])
+else:
+    print('')
+" 2>/dev/null)
+        [[ -z "$quality_id" ]] && die "No quality profiles found. Specify --quality <id>"
+    fi
+
+    # If no root folder specified, get the first one
+    if [[ -z "$root_path" ]]; then
+        root_path=$(arr_api "$app" GET "/rootfolder" | python3 -c "
+import sys, json
+folders = json.load(sys.stdin)
+if folders:
+    print(folders[0]['path'])
+else:
+    print('')
+" 2>/dev/null)
+        [[ -z "$root_path" ]] && die "No root folders found. Specify --root <path>"
+    fi
+
+    local payload
+    case "$app" in
+        sonarr)
+            payload=$(ID="$id" QID="$quality_id" ROOT="$root_path" python3 -c "
+import json, os
+print(json.dumps({
+    'tvdbId': int(os.environ['ID']),
+    'qualityProfileId': int(os.environ['QID']),
+    'rootFolderPath': os.environ['ROOT'],
+    'addOptions': {'searchForMissingEpisodes': True},
+    'monitored': True
+}))
+")
+            ;;
+        radarr)
+            payload=$(ID="$id" QID="$quality_id" ROOT="$root_path" python3 -c "
+import json, os
+print(json.dumps({
+    'tmdbId': int(os.environ['ID']),
+    'qualityProfileId': int(os.environ['QID']),
+    'rootFolderPath': os.environ['ROOT'],
+    'addOptions': {'searchForMovie': True},
+    'monitored': True
+}))
+")
+            ;;
+        lidarr)
+            payload=$(ID="$id" QID="$quality_id" ROOT="$root_path" python3 -c "
+import json, os
+print(json.dumps({
+    'foreignArtistId': os.environ['ID'],
+    'qualityProfileId': int(os.environ['QID']),
+    'rootFolderPath': os.environ['ROOT'],
+    'addOptions': {'searchForMissingAlbums': True},
+    'monitored': True,
+    'metadataProfileId': 1
+}))
+")
+            ;;
+    esac
+
+    local endpoint
+    case "$app" in
+        sonarr)  endpoint="/series" ;;
+        radarr)  endpoint="/movie" ;;
+        lidarr)  endpoint="/artist" ;;
+    esac
+
+    info "Adding item $id to $app..."
+    local response
+    response=$(arr_api "$app" POST "$endpoint" "$payload") || die "Failed to add item to $app"
+    echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+app = '$app'
+if app == 'sonarr':
+    print(f\"  Added: {d.get('title', '?')} (tvdb:{d.get('tvdbId', '?')})\")
+elif app == 'radarr':
+    print(f\"  Added: {d.get('title', '?')} ({d.get('year', '?')}) (tmdb:{d.get('tmdbId', '?')})\")
+elif app == 'lidarr':
+    print(f\"  Added: {d.get('artistName', '?')} (mbid:{d.get('foreignArtistId', '?')})\")
+" 2>/dev/null
+    ok "  Done."
+}
+
+cmd_delete() {
+    local app="${1:-}" id="${2:-}"
+    [[ -z "$app" || -z "$id" ]] && die "Usage: arr delete <sonarr|radarr|lidarr> <id>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Delete not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local endpoint label
+    case "$app" in
+        sonarr)  endpoint="/series/$id"; label="series" ;;
+        radarr)  endpoint="/movie/$id"; label="movie" ;;
+        lidarr)  endpoint="/artist/$id"; label="artist" ;;
+    esac
+
+    confirm_action "Delete $label ID $id from $app?"
+    info "Deleting $label $id from $app..."
+    arr_api "$app" DELETE "$endpoint?deleteFiles=true" || die "Failed to delete $label from $app"
+    ok "  $label $id deleted from $app."
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "arr"
@@ -567,6 +708,10 @@ LIBRARY:
   wanted <app>                  Show missing/wanted episodes/movies
   calendar [app] [days]         Upcoming releases (default: 7 days)
 
+LIBRARY MANAGEMENT:
+  add <app> <id> [--quality N] [--root /path]  Add series/movie/artist by ID
+  delete <app> <id>               Delete series/movie/artist (with confirmation)
+
 HISTORY:
   activity [app]                Recent download/import activity
 
@@ -583,6 +728,9 @@ EXAMPLES:
   arr activity                  Recent downloads
   arr health                    Any issues across all apps
   arr diskspace                 Storage usage
+  arr add s 121361 --quality 1 --root /tv  Add series (tvdbId) to Sonarr
+  arr add r 550                            Add movie (tmdbId) to Radarr
+  arr delete sonarr 15                     Delete series ID 15 from Sonarr
 HELP
 }
 
@@ -606,6 +754,8 @@ main() {
         wanted|missing)         cmd_wanted "$@" ;;
         health|check)           cmd_health "${1:-}" ;;
         diskspace|disk|df)      cmd_diskspace "${1:-}" ;;
+        add)                    cmd_add "$@" ;;
+        delete|del)             cmd_delete "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             # Try as app shortcut: arr sonarr queue → arr queue sonarr
@@ -623,6 +773,8 @@ main() {
                     system|sys)    cmd_system "$real_app" ;;
                     wanted)        cmd_wanted "$real_app" ;;
                     health)        cmd_health "$real_app" ;;
+                    add)           cmd_add "$real_app" "$@" ;;
+                    delete|del)    cmd_delete "$real_app" "$@" ;;
                     *)             die "Unknown subcommand: $subcmd" ;;
                 esac
             else
