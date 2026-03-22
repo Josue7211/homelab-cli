@@ -392,6 +392,66 @@ for u in results:
 "
 }
 
+cmd_request_detail() {
+    local id="${1:-}"
+    [[ -z "$id" ]] && die "Usage: overseerr request-detail <request_id>"
+
+    local response
+    response=$(overseerr_api GET "/request/${id}") || die "Failed to fetch request #$id"
+
+    header "REQUEST #$id"
+
+    echo "$response" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+
+rid = d.get('id', '?')
+rtype = d.get('type', '?')
+
+# Status
+status_val = d.get('status', 0)
+status_map = {1: 'PENDING', 2: 'APPROVED', 3: 'DECLINED'}
+status_str = status_map.get(status_val, str(status_val))
+status_colors = {'PENDING': '\033[33m', 'APPROVED': '\033[32m', 'DECLINED': '\033[31m'}
+color = status_colors.get(status_str, '')
+print(f'  Status:      {color}{status_str}\033[0m')
+print(f'  Type:        {rtype}')
+
+# Media info
+media = d.get('media', {})
+title = media.get('title', media.get('originalTitle', ''))
+if not title:
+    tmdb = media.get('tmdbId', '')
+    tvdb = media.get('tvdbId', '')
+    title = f'tmdb:{tmdb}' if tmdb else (f'tvdb:{tvdb}' if tvdb else 'Unknown')
+print(f'  Title:       {title}')
+
+# Media status
+media_status_val = media.get('status', 0)
+media_status_map = {1: 'unknown', 2: 'pending', 3: 'processing', 4: 'partially available', 5: 'available'}
+media_status = media_status_map.get(media_status_val, str(media_status_val))
+ms_color = '\033[32m' if media_status == 'available' else ('\033[33m' if media_status in ('pending', 'processing') else '')
+print(f'  Media:       {ms_color}{media_status}\033[0m')
+
+# Requester
+requester = d.get('requestedBy', {})
+req_name = requester.get('displayName', requester.get('email', '?'))
+print(f'  Requested by: {req_name}')
+
+# Dates
+created = d.get('createdAt', '?')[:10]
+modified = d.get('updatedAt', d.get('modifiedAt', '?'))[:10] if d.get('updatedAt', d.get('modifiedAt')) else '-'
+print(f'  Created:     {created}')
+print(f'  Modified:    {modified}')
+
+# Seasons (TV only)
+seasons = d.get('seasons', [])
+if seasons:
+    season_nums = sorted([s.get('seasonNumber', '?') for s in seasons])
+    print(f'  Seasons:     {\", \".join(str(s) for s in season_nums)}')
+"
+}
+
 # ── Help ───────────────────────────────────────────────────────
 cmd_help() {
     show_version "overseerr"
@@ -402,16 +462,27 @@ CLI for managing Overseerr media requests.
 USAGE:
   overseerr <command> [args...]
 
-COMMANDS:
+STATUS:
   status                            Server status and request counts
+
+REQUESTS:
   requests [filter]                 List requests (pending|approved|processing|available|declined|all)
                                     Default: pending
+  request-detail <id>               Show full detail for a single request (alias: rd)
   search <query>                    Search for movies or TV shows
   request <movie|tv> <id> [seasons] Create a new request (seasons for TV only)
   approve <id>                      Approve a pending request
+  approve-all                       Bulk approve all pending requests
   decline <id>                      Decline a pending request
   delete <id>                       Delete a request
+
+MEDIA:
   media                             List tracked media items
+
+USERS:
+  users                             List all users with type, requests, role
+
+HELP:
   help                              Show this help
 
 EXAMPLES:
@@ -422,7 +493,10 @@ EXAMPLES:
   overseerr request movie 27205     Request a movie by TMDB ID
   overseerr request tv 1396 1 2     Request TV show seasons 1 & 2
   overseerr approve 42              Approve request #42
+  overseerr approve-all             Approve all pending requests
   overseerr decline 42              Decline request #42
+  overseerr rd 42                   Show full detail for request #42
+  overseerr users                   List all Overseerr users
 
 CONFIG:
   OVERSEERR_URL                     Server URL (default: http://localhost:5055)
@@ -450,6 +524,7 @@ main() {
         media)                  cmd_media ;;
         approve-all)            cmd_approve_all ;;
         users)                  cmd_users ;;
+        request-detail|rd)      cmd_request_detail "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
