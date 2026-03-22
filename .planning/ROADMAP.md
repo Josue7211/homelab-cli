@@ -267,7 +267,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
-| 12. Overseerr | 2/2 | Complete   | 2026-03-22 |
+| 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
 | 15. Koel | 0/? | Not started | - |
