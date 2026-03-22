@@ -917,6 +917,97 @@ for ix in data:
     done
 }
 
+# ── Maintenance ────────────────────────────────────────────────
+
+cmd_blocklist() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr blocklist <sonarr|radarr|lidarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Blocklist not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local response
+    response=$(arr_api "$app" GET "/blocklist?page=1&pageSize=50&sortKey=date&sortDirection=descending") || die "Can't connect to $app"
+
+    echo -e "  ${BOLD}${app}${RESET} — blocklist:"
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+records = data.get('records', [])
+total = data.get('totalRecords', 0)
+if not records:
+    print('    (empty)')
+    sys.exit()
+print(f'    {total} total items (showing up to 50)')
+print()
+print(f'    {\"ID\":<8} {\"Title\":<45} {\"Date\":<12} {\"Reason\"}')
+print(f'    {\"--\":<8} {\"-----\":<45} {\"----\":<12} {\"------\"}')
+for r in records:
+    bid = r.get('id', '?')
+    title = r.get('sourceTitle', '?')[:44]
+    date = r.get('date', '?')[:10]
+    # Get indexer or message for reason
+    msg_list = r.get('message', '')
+    if not msg_list:
+        msgs = r.get('statusMessages', [])
+        msg_list = msgs[0].get('messages', [''])[0][:30] if msgs else ''
+    else:
+        msg_list = msg_list[:30]
+    print(f'    {bid:<8} {title:<45} {date:<12} {msg_list}')
+" 2>/dev/null
+}
+
+cmd_blocklist_clear() {
+    local app="${1:-}"
+    [[ -z "$app" ]] && die "Usage: arr blocklist-clear <sonarr|radarr|lidarr>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Blocklist not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    # Fetch all blocklist IDs
+    local response
+    response=$(arr_api "$app" GET "/blocklist?page=1&pageSize=1000") || die "Can't connect to $app"
+
+    local ids
+    ids=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+records = data.get('records', [])
+ids = [r['id'] for r in records if 'id' in r]
+if not ids:
+    print('')
+else:
+    print(','.join(str(i) for i in ids))
+" 2>/dev/null)
+
+    if [[ -z "$ids" ]]; then
+        ok "  $app: blocklist is empty, nothing to clear."
+        return
+    fi
+
+    local count
+    count=$(echo "$ids" | tr ',' '\n' | wc -l)
+
+    confirm_action "Clear $count blocklist items from $app?"
+
+    local payload
+    payload=$(IDS="$ids" python3 -c "
+import os, json
+ids = [int(i) for i in os.environ['IDS'].split(',')]
+print(json.dumps({'ids': ids}))
+")
+
+    info "Clearing blocklist on $app..."
+    arr_api "$app" DELETE "/blocklist/bulk" "$payload" || die "Failed to clear blocklist on $app"
+    ok "  Cleared $count items from $app blocklist."
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "arr"
@@ -1017,6 +1108,8 @@ main() {
         tags)                   cmd_tags "$@" ;;
         tag-add)                cmd_tag_add "$@" ;;
         indexers|ix)            cmd_indexers "${1:-}" ;;
+        blocklist|bl)           cmd_blocklist "$@" ;;
+        blocklist-clear|bl-clear) cmd_blocklist_clear "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             # Try as app shortcut: arr sonarr queue → arr queue sonarr
@@ -1043,6 +1136,8 @@ main() {
                     tags)          cmd_tags "$real_app" ;;
                     tag-add)       cmd_tag_add "$real_app" "$@" ;;
                     indexers|ix)   cmd_indexers "$real_app" ;;
+                    blocklist|bl)      cmd_blocklist "$real_app" ;;
+                    blocklist-clear|bl-clear) cmd_blocklist_clear "$real_app" ;;
                     *)             die "Unknown subcommand: $subcmd" ;;
                 esac
             else
