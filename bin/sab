@@ -283,6 +283,78 @@ cmd_priority() {
     ok "  Priority set to $level for $nzo_id"
 }
 
+cmd_categories() {
+    header "CATEGORIES"
+    local result
+    result=$(sab_api "get_cats") || die "Can't get categories"
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+cats = d.get('categories', [])
+if not cats:
+    print('  No categories configured.')
+    sys.exit()
+for c in cats:
+    marker = ' (default)' if c == '*' else ''
+    print(f'  {c}{marker}')
+print(f'\n  Total: {len(cats)} categories')
+"
+}
+
+cmd_limit() {
+    local speed="${1:-}"
+    if [[ -z "$speed" ]]; then
+        # Show current limit
+        local queue
+        queue=$(sab_api "queue") || die "Can't get queue"
+        echo "$queue" | python3 -c "
+import sys, json
+d = json.load(sys.stdin).get('queue', {})
+limit = d.get('speedlimit', '0')
+speed = d.get('speed', '?')
+kbspeed = d.get('kbpersec', '0')
+limit_str = f'{limit} KB/s' if limit and str(limit) != '0' else 'Unlimited'
+print(f'  Speed Limit:    {limit_str}')
+print(f'  Current Speed:  {speed}')
+"
+    else
+        sab_api "config" "name=speedlimit" "value=$speed" >/dev/null || die "Failed to set speed limit"
+        if [[ "$speed" == *% ]]; then
+            ok "  Speed limit set to: $speed"
+        elif [[ "$speed" == "0" ]]; then
+            ok "  Speed limit removed (unlimited)."
+        else
+            ok "  Speed limit set to: ${speed} KB/s"
+        fi
+    fi
+}
+
+cmd_servers() {
+    header "NEWS SERVERS"
+    local result
+    result=$(sab_api "get_config" "section=servers") || die "Can't get server config"
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+servers = d.get('config', {}).get('servers', [])
+if not servers:
+    print('  No servers configured.')
+    sys.exit()
+print(f'  {\"Name\":<25} {\"Host\":<30} {\"Port\":>5}  {\"SSL\":>3}  {\"Conn\":>4}  {\"Prio\":>4}  {\"Enabled\"}')
+print(f'  {\"─\"*24} {\"─\"*29} {\"─\"*5}  {\"─\"*3}  {\"─\"*4}  {\"─\"*4}  {\"─\"*7}')
+for s in servers:
+    name = s.get('displayname', s.get('host', '?'))[:24]
+    host = s.get('host', '?')[:29]
+    port = s.get('port', '?')
+    ssl = 'Yes' if s.get('ssl', 0) else 'No'
+    conn = s.get('connections', '?')
+    prio = s.get('priority', '?')
+    enabled = 'Yes' if s.get('enable', 0) else 'No'
+    print(f'  {name:<25} {host:<30} {port:>5}  {ssl:>3}  {conn:>4}  {prio:>4}  {enabled}')
+print(f'\n  Total: {len(servers)} servers')
+"
+}
+
 cmd_help() {
     show_version "sab"
     cat <<'HELP'
@@ -346,6 +418,9 @@ main() {
         pause-item)         cmd_pause_item "$1" ;;
         resume-item)        cmd_resume_item "$1" ;;
         priority|prio)      cmd_priority "$@" ;;
+        categories|cats)    cmd_categories ;;
+        limit)              cmd_limit "${1:-}" ;;
+        servers)            cmd_servers ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
