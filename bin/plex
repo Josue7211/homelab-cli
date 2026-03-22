@@ -51,9 +51,10 @@ get_tautulli_key() {
 # ── API helpers ─────────────────────────────────────────────────
 plex_api() {
     local path="$1"
+    local method="${2:-GET}"
     local token
     token=$(get_plex_token)
-    curl -sf "${PLEX_URL}${path}" \
+    curl -sf -X "$method" "${PLEX_URL}${path}" \
         -H "X-Plex-Token: ${token}" \
         -H "Accept: application/json" \
         2>/dev/null
@@ -519,6 +520,97 @@ for i, item in enumerate(results[:25], 1):
 "
 }
 
+cmd_playlists() {
+    header "PLEX PLAYLISTS"
+
+    local response
+    response=$(plex_api "/playlists") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+    echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+items = data.get('Metadata', [])
+
+if not items:
+    print('  No playlists found.')
+    sys.exit()
+
+print(f'  {\"TITLE\":<35} {\"TYPE\":<10} {\"ITEMS\":<8} {\"DURATION\":<12} {\"SMART\"}')
+print(f'  {\"─\" * 35} {\"─\" * 10} {\"─\" * 8} {\"─\" * 12} {\"─\" * 5}')
+
+for p in sorted(items, key=lambda x: x.get('title', '').lower()):
+    title = p.get('title', '?')[:34]
+    ptype = p.get('playlistType', p.get('type', '?'))[:9]
+    count = p.get('leafCount', p.get('childCount', '?'))
+    duration_ms = p.get('duration', 0)
+    try:
+        dur_secs = int(duration_ms) // 1000
+        dur_h = dur_secs // 3600
+        dur_m = (dur_secs % 3600) // 60
+        duration = f'{dur_h}h {dur_m:02d}m' if dur_h > 0 else f'{dur_m}m'
+    except (ValueError, TypeError):
+        duration = '?'
+    smart = 'yes' if p.get('smart', False) else 'no'
+    print(f'  {title:<35} {ptype:<10} {count:<8} {duration:<12} {smart}')
+"
+}
+
+cmd_collections() {
+    local library_id="${1:-}"
+
+    if [[ -n "$library_id" ]]; then
+        _show_collections "$library_id"
+    else
+        header "COLLECTIONS (ALL LIBRARIES)"
+
+        local libs_response
+        libs_response=$(plex_api "/library/sections") || die "Cannot connect to Plex at ${PLEX_URL}"
+
+        local ids
+        ids=$(echo "$libs_response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin).get('MediaContainer', {})
+for lib in data.get('Directory', []):
+    print(lib.get('key', ''))
+" 2>/dev/null)
+
+        local found=0
+        while IFS= read -r lid; do
+            [[ -z "$lid" ]] && continue
+            _show_collections "$lid" && found=1
+        done <<< "$ids"
+
+        [[ "$found" -eq 0 ]] && echo "  No collections found in any library."
+    fi
+}
+
+_show_collections() {
+    local lid="$1"
+    local response
+    response=$(plex_api "/library/sections/${lid}/collections") || return 1
+
+    echo "$response" | python3 -c "
+import sys, json
+lid = '${lid}'
+data = json.load(sys.stdin).get('MediaContainer', {})
+items = data.get('Metadata', [])
+lib_title = data.get('title1', data.get('librarySectionTitle', 'Library ' + lid))
+
+if not items:
+    sys.exit()
+
+print(f'\n  {lib_title} (ID: {lid}):')
+print(f'  {\"TITLE\":<40} {\"ITEMS\":<8} {\"SORT TITLE\"}')
+print(f'  {\"─\" * 40} {\"─\" * 8} {\"─\" * 30}')
+
+for c in sorted(items, key=lambda x: x.get('title', '').lower()):
+    title = c.get('title', '?')[:39]
+    count = c.get('childCount', '?')
+    sort_title = c.get('titleSort', c.get('title', ''))[:29]
+    print(f'  {title:<40} {count:<8} {sort_title}')
+" 2>/dev/null && return 0 || return 1
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "plex"
@@ -573,6 +665,8 @@ main() {
         users)                  cmd_users ;;
         scan|refresh)           cmd_scan "${1:-}" ;;
         search|find)            cmd_search "$@" ;;
+        playlists|pl)           cmd_playlists ;;
+        collections|cols)       cmd_collections "${1:-}" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
