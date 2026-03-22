@@ -144,7 +144,7 @@ Plans:
 
 Plans:
 - [x] 08-01-PLAN.md — DHCP commands (dhcp, dhcp-add) + DNS rewrite commands (rewrites, rewrite-add, rewrite-rm)
-- [ ] 08-02-PLAN.md — Rule removal (unblock, unallow) + client commands (clients, client) + help text update
+- [x] 08-02-PLAN.md — Rule removal (unblock, unallow) + client commands (clients, client) + help text update
 
 ### Phase 9: OPNsense
 **Goal**: Users can manage firewall rules, aliases, DHCP, VPN tunnels, and traffic stats from the command line

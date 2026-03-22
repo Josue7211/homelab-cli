@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 08-01-PLAN.md (AdGuard DHCP & DNS rewrites)
-last_updated: "2026-03-22T10:18:23.394Z"
+stopped_at: Completed 08-02-PLAN.md (AdGuard rule removal & client commands)
+last_updated: "2026-03-22T10:27:56.811Z"
 progress:
   total_phases: 16
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 19
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Current Position
 
-Phase: 08 (adguard) — EXECUTING
-Plan: 2 of 2
+Phase: 09
+Plan: Not started
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Plan: 2 of 2
 | Phase 07 P01 | 3min | 2 tasks | 1 files |
 | Phase 07 P02 | 2min | 2 tasks | 1 files |
 | Phase 08 P01 | 4min | 2 tasks | 1 files |
+| Phase 08 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Help text organized into STATUS, TORRENTS, INSPECTION, MANAGEMENT, LIMITS, EXAMPLES sections
 - [Phase 08]: DHCP display splits static vs dynamic leases with server status header
 - [Phase 08]: rewrite-rm looks up answer by domain first, then confirms before deletion
+- [Phase 08]: Rule removal uses python3 list filtering + full replacement POST; client lookup uses case-insensitive substring match
 
 ### Pending Todos
 
@@ -119,8 +121,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T10:18:23.243Z
-Stopped at: Completed 08-01-PLAN.md (AdGuard DHCP & DNS rewrites)
+Last session: 2026-03-22T10:24:16.098Z
+Stopped at: Completed 08-02-PLAN.md (AdGuard rule removal & client commands)
 Resume with: /gsd:autonomous --from 8
 Notes:
 

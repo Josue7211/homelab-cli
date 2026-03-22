@@ -127,9 +127,9 @@
 - [x] **AG-03**: List DNS rewrites (`adguard rewrites`)
 - [x] **AG-04**: Add DNS rewrite (`adguard rewrite-add <domain> <answer>`)
 - [x] **AG-05**: Remove DNS rewrite with confirmation (`adguard rewrite-rm <domain>`)
-- [ ] **AG-06**: Remove custom rule (`adguard unblock <domain>` / `adguard unallow <domain>`)
-- [ ] **AG-07**: List clients (`adguard clients`)
-- [ ] **AG-08**: Show per-client stats (`adguard client <ip>`)
+- [x] **AG-06**: Remove custom rule (`adguard unblock <domain>` / `adguard unallow <domain>`)
+- [x] **AG-07**: List clients (`adguard clients`)
+- [x] **AG-08**: Show per-client stats (`adguard client <ip>`)
 
 ### Overseerr — Expanded Management
 
@@ -313,9 +313,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | AG-03 | Phase 8: AdGuard | Complete |
 | AG-04 | Phase 8: AdGuard | Complete |
 | AG-05 | Phase 8: AdGuard | Complete |
-| AG-06 | Phase 8: AdGuard | Pending |
-| AG-07 | Phase 8: AdGuard | Pending |
-| AG-08 | Phase 8: AdGuard | Pending |
+| AG-06 | Phase 8: AdGuard | Complete |
+| AG-07 | Phase 8: AdGuard | Complete |
+| AG-08 | Phase 8: AdGuard | Complete |
 | OPN-01 | Phase 9: OPNsense | Pending |
 | OPN-02 | Phase 9: OPNsense | Pending |
 | OPN-03 | Phase 9: OPNsense | Pending |
