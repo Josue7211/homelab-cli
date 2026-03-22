@@ -70,10 +70,10 @@
 
 ### Proxmox/Homelab — VM Management
 
-- [ ] **PVE-01**: Show VM configuration (`homelab config <vmid>`)
-- [ ] **PVE-02**: Modify VM config (`homelab set <vmid> KEY=VAL...`)
-- [ ] **PVE-03**: Resize VM disk (`homelab resize <vmid> <disk> <size>`)
-- [ ] **PVE-04**: Clone VM (`homelab clone <vmid> [--name <name>]`)
+- [x] **PVE-01**: Show VM configuration (`homelab config <vmid>`)
+- [x] **PVE-02**: Modify VM config (`homelab set <vmid> KEY=VAL...`)
+- [x] **PVE-03**: Resize VM disk (`homelab resize <vmid> <disk> <size>`)
+- [x] **PVE-04**: Clone VM (`homelab clone <vmid> [--name <name>]`)
 - [ ] **PVE-05**: Create snapshot (`homelab snapshot-create <vmid> <name>`)
 - [ ] **PVE-06**: Restore snapshot with confirmation (`homelab snapshot-restore <vmid> <name>`)
 - [ ] **PVE-07**: Delete snapshot with confirmation (`homelab snapshot-delete <vmid> <name>`)
@@ -271,10 +271,10 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | ARR-12 | Phase 3: ARR Suite | Complete |
 | ARR-13 | Phase 3: ARR Suite | Complete |
 | ARR-14 | Phase 3: ARR Suite | Complete |
-| PVE-01 | Phase 4: Proxmox | Pending |
-| PVE-02 | Phase 4: Proxmox | Pending |
-| PVE-03 | Phase 4: Proxmox | Pending |
-| PVE-04 | Phase 4: Proxmox | Pending |
+| PVE-01 | Phase 4: Proxmox | Complete |
+| PVE-02 | Phase 4: Proxmox | Complete |
+| PVE-03 | Phase 4: Proxmox | Complete |
+| PVE-04 | Phase 4: Proxmox | Complete |
 | PVE-05 | Phase 4: Proxmox | Pending |
 | PVE-06 | Phase 4: Proxmox | Pending |
 | PVE-07 | Phase 4: Proxmox | Pending |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-03-PLAN.md (ARR maintenance commands)
-last_updated: "2026-03-22T08:15:26.057Z"
+stopped_at: Completed 04-01-PLAN.md (Proxmox VM management commands)
+last_updated: "2026-03-22T08:36:43.599Z"
 progress:
   total_phases: 16
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 03 — arr-suite
+**Current focus:** Phase 04 — proxmox
 
 ## Current Position
 
-Phase: 03 (arr-suite) — EXECUTING
-Plan: 3 of 3
+Phase: 04 (proxmox) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Plan: 3 of 3
 | Phase 03 P01 | 6min | 2 tasks | 1 files |
 | Phase 03 P02 | 2min | 2 tasks | 1 files |
 | Phase 03 P03 | 8min | 2 tasks | 1 files |
+| Phase 04 P01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Library management commands guard against Prowlarr/Bazarr with clear error messages
 - [Phase 03]: Profiles/rootfolders limited to sonarr/radarr/lidarr; tags support prowlarr too; indexers iterate ALL_APPS when no app specified
 - [Phase 03]: Blocklist limited to sonarr/radarr/lidarr; backup/logs/restart include prowlarr
+- [Phase 04]: pve_api takes method as first arg with passthrough curl args for form-encoded data
+- [Phase 04]: cmd_clone creates full clones (not linked) for portability
 
 ### Pending Todos
 
@@ -89,8 +92,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:15:26.049Z
-Stopped at: Completed 03-03-PLAN.md (ARR maintenance commands)
+Last session: 2026-03-22T08:36:43.596Z
+Stopped at: Completed 04-01-PLAN.md (Proxmox VM management commands)
 Resume with: /gsd:autonomous --from 2
 Notes:
 
