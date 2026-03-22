@@ -263,7 +263,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 7. qBittorrent | 2/2 | Complete | 2026-03-22 |
 | 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/2 | Planning complete | - |
-| 10. SABnzbd | 2/2 | Complete   | 2026-03-22 |
+| 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 0/? | Not started | - |
 | 12. Overseerr | 0/? | Not started | - |
 | 13. Vault | 0/? | Not started | - |
