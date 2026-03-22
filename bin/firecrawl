@@ -21,11 +21,46 @@ fc_get() { curl -s "${FIRECRAWL_URL}${1}"; }
 # ── Commands ─────────────────────────────────────────────────
 
 cmd_scrape() {
-    local url="$1" format="${2:-markdown}" output="${3:-}"
+    local url="" format="markdown" output="" wait_ms="" headers_str=""
+
+    # First arg is URL (required)
+    [[ $# -lt 1 ]] && die "Usage: firecrawl scrape <url> [format] [outfile] [--wait N] [--headers 'K:V,...']"
+    url="$1"; shift
+
+    # Parse remaining: positional (format, outfile) then flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wait)    wait_ms="${2:-}"; shift 2 ;;
+            --headers) headers_str="${2:-}"; shift 2 ;;
+            *)
+                if [[ "$format" == "markdown" && ! "$1" =~ ^-- ]]; then
+                    format="$1"; shift
+                elif [[ -z "$output" && ! "$1" =~ ^-- ]]; then
+                    output="$1"; shift
+                else
+                    die "Unknown option: $1"
+                fi
+                ;;
+        esac
+    done
+
     local result
-    result=$(URL="$url" FMT="$format" python3 -c "
+    result=$(URL="$url" FMT="$format" WAIT="$wait_ms" HDRS="$headers_str" python3 -c "
 import os, json
-print(json.dumps({'url': os.environ['URL'], 'formats': [os.environ['FMT']]}))
+payload = {'url': os.environ['URL'], 'formats': [os.environ['FMT']]}
+wait = os.environ.get('WAIT', '')
+if wait:
+    payload['waitFor'] = int(wait)
+hdrs = os.environ.get('HDRS', '')
+if hdrs:
+    h = {}
+    for pair in hdrs.split(','):
+        if ':' in pair:
+            k, v = pair.split(':', 1)
+            h[k.strip()] = v.strip()
+    if h:
+        payload['headers'] = h
+print(json.dumps(payload))
 ")
     local response
     response=$(fc_post "/v1/scrape" -d "$result")
@@ -159,6 +194,52 @@ print(json.dumps({'urls': [os.environ['URL']], 'prompt': os.environ['PROMPT']}))
     fc_post "/v1/extract" -d "$payload" | python3 -m json.tool
 }
 
+cmd_batch() {
+    [[ $# -lt 1 ]] && die "Usage: firecrawl batch <url1> [url2 ...]"
+
+    local urls_str=""
+    for u in "$@"; do
+        urls_str="${urls_str}${u}"$'\n'
+    done
+
+    local payload
+    payload=$(URLS="$urls_str" python3 -c "
+import os, json
+urls = [u.strip() for u in os.environ['URLS'].strip().split('\n') if u.strip()]
+print(json.dumps({'urls': urls, 'formats': ['markdown']}))
+")
+
+    info "Batch scraping ${#} URL(s)..."
+    local response
+    response=$(fc_post "/v1/batch/scrape" -d "$payload")
+
+    python3 <<'PYEOF' - "$response"
+import sys, json
+data = json.loads(sys.argv[1]) if len(sys.argv) > 1 else json.load(sys.stdin)
+if not data.get('success', True):
+    print('Error:', data.get('error', 'Unknown'), file=sys.stderr)
+    sys.exit(1)
+
+# batch/scrape may return {id, url} for async or {success, data} for sync
+if 'id' in data:
+    print(f"Batch job started: {data['id']}")
+    print(f"Check status:  firecrawl status {data['id']}")
+else:
+    results = data.get('data', [])
+    print(f'{len(results)} page(s) scraped:\n')
+    for r in results:
+        meta = r.get('metadata', {})
+        title = meta.get('title', '(no title)')[:70]
+        url = meta.get('sourceURL', meta.get('url', '?'))[:80]
+        md = r.get('markdown', '')
+        words = len(md.split()) if md else 0
+        print(f'  {title}')
+        print(f'    {url}')
+        print(f'    {words} words')
+        print()
+PYEOF
+}
+
 cmd_health() {
     local code
     code=$(curl -s -o /dev/null -w "%{http_code}" "${FIRECRAWL_URL}/v1/scrape" \
@@ -212,8 +293,12 @@ main() {
 
     case "$cmd" in
         scrape)
-            [[ $# -lt 1 ]] && { echo "Usage: firecrawl scrape <url> [format] [outfile]"; exit 1; }
-            cmd_scrape "$1" "${2:-markdown}" "${3:-}"
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl scrape <url> [format] [outfile] [--wait N] [--headers 'K:V,...']"; exit 1; }
+            cmd_scrape "$@"
+            ;;
+        batch)
+            [[ $# -lt 1 ]] && { echo "Usage: firecrawl batch <url1> [url2 ...]"; exit 1; }
+            cmd_batch "$@"
             ;;
         crawl)
             [[ $# -lt 1 ]] && { echo "Usage: firecrawl crawl <url> [limit]"; exit 1; }
