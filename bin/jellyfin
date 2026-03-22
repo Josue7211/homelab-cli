@@ -569,26 +569,47 @@ CLI for managing and monitoring Jellyfin media server.
 USAGE:
   jellyfin <command> [args...]
 
-COMMANDS:
+SERVER:
   status                    Server information and version
-  streams                   Active sessions and current streams
+  info                      Detailed server configuration and paths
+  logs                      List server log files
+
+LIBRARY:
   libraries                 List media libraries and paths
   recent [count]            Recently added items (default: 15)
   search <query>            Search for content across libraries
   scan                      Trigger a library scan/refresh
+
+STREAMS:
+  streams                   Active sessions and current streams
   devices                   List registered devices
-  logs                      List server log files
+
+USER MANAGEMENT:
+  users                     List all users
+  user-add <name> <pass>    Create a new user
+  user-rm <name>            Delete a user (with confirmation)
+
+TASKS:
+  tasks                     List scheduled tasks
+  run-task <id>             Run a scheduled task immediately
+
+SERVER INFO:
+  plugins                   List installed plugins
+  activity [count]          Show activity log (default: 25)
   help                      Show this help
 
 EXAMPLES:
   jellyfin status           Server version and system info
+  jellyfin info             Detailed server paths and config
   jellyfin streams          Who's watching right now
-  jellyfin libraries        Show all libraries and paths
-  jellyfin recent           Last 15 items added
-  jellyfin recent 30        Last 30 items added
+  jellyfin users            List all Jellyfin users
+  jellyfin user-add joe pw  Create user "joe" with password "pw"
+  jellyfin user-rm joe      Delete user "joe" (asks confirmation)
+  jellyfin tasks            Show all scheduled tasks
+  jellyfin run-task <id>    Trigger a task by its ID
+  jellyfin plugins          Show installed plugins and versions
+  jellyfin activity 50      Last 50 activity log entries
   jellyfin search "matrix"  Search for content
-  jellyfin scan             Refresh all libraries
-  jellyfin devices          Show all registered clients
 
 CONFIG:
   JELLYFIN_URL              Server URL (default: http://localhost:8096)
