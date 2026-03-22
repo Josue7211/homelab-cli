@@ -191,6 +191,98 @@ print(f'  Download: {speed}')
 "
 }
 
+cmd_info() {
+    local nzo_id="${1:-}"
+    [[ -z "$nzo_id" ]] && die "Usage: sab info <nzo_id>"
+    header "NZB DETAIL"
+    local queue
+    queue=$(sab_api "queue") || die "Can't get queue"
+    echo "$queue" | NZO_ID="$nzo_id" python3 -c "
+import sys, json, os
+nzo = os.environ['NZO_ID']
+d = json.load(sys.stdin).get('queue', {})
+match = None
+for s in d.get('slots', []):
+    if s.get('nzo_id') == nzo:
+        match = s; break
+if not match:
+    print(f'  Item not found in queue: {nzo}')
+    sys.exit(1)
+s = match
+prio_map = {'-100': 'Stop', '-1': 'Low', '0': 'Normal', '1': 'High', '2': 'Force'}
+prio = prio_map.get(str(s.get('priority', 0)), str(s.get('priority', '?')))
+print(f'  Filename:    {s.get(\"filename\", \"?\")}')
+print(f'  NZO ID:      {s.get(\"nzo_id\", \"?\")}')
+print(f'  Status:      {s.get(\"status\", \"?\")}')
+print(f'  Category:    {s.get(\"cat\", \"*\")}')
+print(f'  Priority:    {prio}')
+print(f'  Size:        {s.get(\"size\", \"?\")}')
+print(f'  Downloaded:  {s.get(\"mb\", \"?\")} MB')
+print(f'  Remaining:   {s.get(\"sizeleft\", \"?\")}')
+print(f'  Progress:    {s.get(\"percentage\", \"?\")}%')
+print(f'  ETA:         {s.get(\"timeleft\", \"?\")}')
+print(f'  Age:         {s.get(\"avg_age\", \"?\")}')
+print(f'  Script:      {s.get(\"script\", \"Default\")}')
+print(f'  Unpack:      {s.get(\"unpackopts\", \"?\")}')
+"
+}
+
+cmd_delete() {
+    local nzo_id="${1:-}"
+    [[ -z "$nzo_id" ]] && die "Usage: sab delete <nzo_id> [--del-files]"
+    local del_files=0
+    [[ "${2:-}" == "--del-files" ]] && del_files=1
+    confirm_action "Delete item '$nzo_id' from queue?"
+    local result
+    if [[ "$del_files" -eq 1 ]]; then
+        result=$(sab_api "queue" "name=delete" "value=$nzo_id" "del_files=1") || die "Failed to delete item: $nzo_id"
+    else
+        result=$(sab_api "queue" "name=delete" "value=$nzo_id") || die "Failed to delete item: $nzo_id"
+    fi
+    echo "$result" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+if d.get('status'):
+    pass
+else:
+    print(f'  Error: {d.get(\"error\", \"unknown\")}')
+    sys.exit(1)
+" || die "Failed to delete item: $nzo_id"
+    ok "  Deleted from queue: $nzo_id"
+}
+
+cmd_pause_item() {
+    local nzo_id="${1:-}"
+    [[ -z "$nzo_id" ]] && die "Usage: sab pause-item <nzo_id>"
+    sab_api "queue" "name=pause" "value=$nzo_id" >/dev/null || die "Failed to pause item: $nzo_id"
+    ok "  Paused: $nzo_id"
+}
+
+cmd_resume_item() {
+    local nzo_id="${1:-}"
+    [[ -z "$nzo_id" ]] && die "Usage: sab resume-item <nzo_id>"
+    sab_api "queue" "name=resume" "value=$nzo_id" >/dev/null || die "Failed to resume item: $nzo_id"
+    ok "  Resumed: $nzo_id"
+}
+
+cmd_priority() {
+    local nzo_id="${1:-}"
+    local level="${2:-}"
+    [[ -z "$nzo_id" || -z "$level" ]] && die "Usage: sab priority <nzo_id> <stop|low|normal|high|force>"
+    local numeric
+    case "$level" in
+        stop)    numeric="-100" ;;
+        low)     numeric="-1" ;;
+        normal)  numeric="0" ;;
+        high)    numeric="1" ;;
+        force)   numeric="2" ;;
+        -100|-1|0|1|2) numeric="$level" ;;
+        *)       die "Invalid priority: $level (use: stop, low, normal, high, force)" ;;
+    esac
+    sab_api "queue" "name=priority" "value=$nzo_id" "value2=$numeric" >/dev/null || die "Failed to set priority"
+    ok "  Priority set to $level for $nzo_id"
+}
+
 cmd_help() {
     show_version "sab"
     cat <<'HELP'
@@ -208,8 +300,15 @@ QUEUE:
   queue                       Show current download queue
   history [count]             Download history (default: 20)
   add <nzb_url>               Add NZB by URL
-  pause                       Pause the queue
-  resume                      Resume the queue
+  pause                       Pause the entire queue
+  resume                      Resume the entire queue
+
+QUEUE MANAGEMENT:
+  info <nzo_id>               Detailed info for a queue item
+  delete <nzo_id> [--del-files]  Remove item from queue
+  pause-item <nzo_id>         Pause a single queue item
+  resume-item <nzo_id>        Resume a paused queue item
+  priority <nzo_id> <level>   Set item priority (stop/low/normal/high/force)
 
 EXAMPLES:
   sab status
@@ -219,6 +318,9 @@ EXAMPLES:
   sab resume                  Resume downloading
   sab speed                   Check current speed
   sab add "https://..."       Add NZB by URL
+  sab info SABnzbd_nzo_abc    Show details for a queue item
+  sab delete SABnzbd_nzo_abc  Remove item (with confirmation)
+  sab priority SABnzbd_nzo_abc high  Set item to high priority
 HELP
 }
 
@@ -239,6 +341,11 @@ main() {
         pause)              cmd_pause ;;
         resume)             cmd_resume ;;
         speed)              cmd_speed ;;
+        info|detail)        cmd_info "$1" ;;
+        delete|rm)          cmd_delete "$@" ;;
+        pause-item)         cmd_pause_item "$1" ;;
+        resume-item)        cmd_resume_item "$1" ;;
+        priority|prio)      cmd_priority "$@" ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
