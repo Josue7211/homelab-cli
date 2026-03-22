@@ -140,10 +140,11 @@ Plans:
   1. User can list DHCP leases and add static DHCP mappings
   2. User can list, add, and remove DNS rewrites
   3. User can remove custom allow/block rules, list clients, and view per-client stats
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — DHCP commands (dhcp, dhcp-add) + DNS rewrite commands (rewrites, rewrite-add, rewrite-rm)
+- [ ] 08-02-PLAN.md — Rule removal (unblock, unallow) + client commands (clients, client) + help text update
 
 ### Phase 9: OPNsense
 **Goal**: Users can manage firewall rules, aliases, DHCP, VPN tunnels, and traffic stats from the command line
@@ -258,7 +259,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 5. Plex | 1/2 | Executing | - |
 | 6. Jellyfin | 2/2 | Complete   | 2026-03-22 |
 | 7. qBittorrent | 2/2 | Complete | 2026-03-22 |
-| 8. AdGuard | 0/? | Not started | - |
+| 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/? | Not started | - |
 | 10. SABnzbd | 0/? | Not started | - |
 | 11. Gluetun | 0/? | Not started | - |
