@@ -202,7 +202,7 @@
 
 ### Help Text Updates
 
-- [ ] **HELP-01**: Update all 14 CLI help texts to include new commands
+- [x] **HELP-01**: Update all 14 CLI help texts to include new commands
 
 ## v2 Requirements
 
@@ -359,7 +359,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | KOEL-03 | Phase 15: Koel | Complete |
 | KOEL-04 | Phase 15: Koel | Complete |
 | KOEL-05 | Phase 15: Koel | Complete |
-| HELP-01 | Phase 16: Help Text | Pending |
+| HELP-01 | Phase 16: Help Text | Complete |
 
 **Coverage:**
 - v1 requirements: 128 total
