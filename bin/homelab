@@ -324,6 +324,47 @@ cmd_clone() {
     fi
 }
 
+# ── Snapshots ────────────────────────────────────────────────────
+
+cmd_snapshot_create() {
+    local vmid="$1" snapname="$2"
+    shift 2
+    local desc=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --desc) desc="$2"; shift 2 ;;
+            *) die "Unknown option: $1" ;;
+        esac
+    done
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    local -a data_args=(-d "snapname=$snapname")
+    [[ -n "$desc" ]] && data_args+=(-d "description=$desc")
+    info "Creating snapshot '$snapname' for VM $vmid..."
+    pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/snapshot" "${data_args[@]}" > /dev/null
+    ok "Snapshot '$snapname' created."
+}
+
+cmd_snapshot_restore() {
+    local vmid="$1" snapname="$2"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    confirm_action "Restore VM $vmid to snapshot '$snapname'? Current state will be lost."
+    info "Restoring VM $vmid to snapshot '$snapname'..."
+    pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/snapshot/$snapname/rollback" > /dev/null
+    ok "Snapshot '$snapname' restored."
+}
+
+cmd_snapshot_delete() {
+    local vmid="$1" snapname="$2"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    confirm_action "Delete snapshot '$snapname' from VM $vmid?"
+    info "Deleting snapshot '$snapname' from VM $vmid..."
+    pve_api DELETE "/nodes/${PVE_NODE}/$vm_type/$vmid/snapshot/$snapname" > /dev/null
+    ok "Snapshot '$snapname' deleted."
+}
+
 # ── Portainer shortcuts ──────────────────────────────────────────
 
 cmd_stacks() {
@@ -412,6 +453,11 @@ VM MANAGEMENT:
   resize <vmid> <disk> <size>     Resize disk (e.g., resize 100 scsi0 +10G)
   clone <vmid> [--name N] [--target NODE]  Full clone a VM
 
+SNAPSHOTS:
+  snapshot-create <vmid> <name> [--desc TEXT]  Create VM snapshot
+  snapshot-restore <vmid> <name>               Restore snapshot (destructive)
+  snapshot-delete <vmid> <name>                Delete snapshot (irreversible)
+
 PORTAINER (Docker):
   stacks [instance]               List stacks (services|plex, or both)
   containers [instance]           List containers
@@ -449,6 +495,9 @@ main() {
         set)                cmd_set "$@" ;;
         resize)             cmd_resize "$1" "$2" "$3" ;;
         clone)              cmd_clone "$@" ;;
+        snapshot-create|snap-create)    cmd_snapshot_create "$@" ;;
+        snapshot-restore|snap-restore)  cmd_snapshot_restore "$1" "$2" ;;
+        snapshot-delete|snap-delete)    cmd_snapshot_delete "$1" "$2" ;;
         stacks)             cmd_stacks "${1:-}" ;;
         containers|ps)      cmd_containers "${1:-}" ;;
         logs)               cmd_logs "$@" ;;
