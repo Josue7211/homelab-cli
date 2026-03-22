@@ -265,6 +265,26 @@ print(base64.b64encode(json.dumps(item).encode()).decode())
     ok "  Updated item: $identifier"
 }
 
+cmd_delete() {
+    local identifier="${1:-}"
+    [[ -z "$identifier" ]] && die "Usage: vault delete <id|name>"
+
+    check_unlocked
+
+    local item_id
+    item_id=$(resolve_item_id "$identifier")
+
+    # Get item name for confirmation message
+    local item_name
+    item_name=$(bw get item "$item_id" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('name','?'))" 2>/dev/null || echo "$identifier")
+
+    confirm_action "Delete item '$item_name'?"
+
+    bw delete item "$item_id" 2>/dev/null || die "Failed to delete item '$identifier'"
+
+    ok "  Deleted item: $item_name ($item_id)"
+}
+
 cmd_help() {
     show_version "vault"
     cat <<'HELP'
@@ -273,20 +293,31 @@ Quick access to Vaultwarden secrets
 USAGE:
   vault <command> [args...]
 
-COMMANDS:
+LOOKUP:
   status                Check vault status (locked/unlocked)
   get <name>            Get password by entry name
   user <name>           Get username by entry name
   item <name>           Show full item details
   search <query>        Search entries
   list                  List all entries
+
+ITEM MANAGEMENT:
+  create <name> <user> <pass> [--url URL] [--folder FOLDER]
+                        Create a new login item
+  edit <id|name> [--username U] [--password P] [--url URL] [--notes N]
+                        Edit fields on an existing item
+  delete|rm <id|name>   Delete an item (with confirmation)
+
+SYNC:
   sync                  Sync vault
 
 EXAMPLES:
   vault status
   vault get "My API Token"
   vault search proxmox
-  vault item "Cloudflare API"
+  vault create "New Service" admin s3cret --url https://svc.local
+  vault edit "New Service" --password newpass123
+  vault delete "Old Service"
 
 NOTE:
   Vault must be unlocked first: bw unlock
@@ -310,6 +341,7 @@ main() {
         sync)           cmd_sync ;;
         create)         cmd_create "$@" ;;
         edit)           cmd_edit "$@" ;;
+        delete|rm)      cmd_delete "$@" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
