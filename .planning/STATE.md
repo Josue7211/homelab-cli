@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 11-01-PLAN.md (Gluetun read-only commands)
-last_updated: "2026-03-22T11:20:58.340Z"
+stopped_at: Completed 11-02-PLAN.md (Gluetun switch + leak-test commands)
+last_updated: "2026-03-22T11:24:52.034Z"
 progress:
   total_phases: 16
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 25
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -70,6 +70,7 @@ Plan: 2 of 2
 | Phase 10-sabnzbd P01 | 2min | 1 tasks | 1 files |
 | Phase 10-sabnzbd P02 | 2min | 2 tasks | 1 files |
 | Phase 11-gluetun P01 | 2min | 2 tasks | 1 files |
+| Phase 11-gluetun P02 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,7 @@ Recent decisions affecting current work:
 - [Phase 10-sabnzbd]: Used os.environ NZO_ID pattern in python3 for shell injection safety; priority accepts named levels and numeric values
 - [Phase 10-sabnzbd]: cmd_limit reads speedlimit from queue response for display, uses config mode to set; cmd_servers uses get_config section=servers; help text organized into 5 sections
 - [Phase 11-gluetun]: cmd_ports uses dual-endpoint fallback: /v1/portforwarding then /v1/openvpn/portforwarded for legacy compat; server filter via FILTER env var to python3
+- [Phase 11-gluetun]: cmd_switch uses os.environ to pass country/city safely to python3 JSON builder; cmd_leak_test checks host/nslookup/dig in priority order for portability; help text reorganized into STATUS/PROVIDER/CONTROL/DIAGNOSTICS sections
 
 ### Pending Todos
 
@@ -132,8 +134,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T11:20:58.335Z
-Stopped at: Completed 11-01-PLAN.md (Gluetun read-only commands)
+Last session: 2026-03-22T11:24:52.029Z
+Stopped at: Completed 11-02-PLAN.md (Gluetun switch + leak-test commands)
 Resume with: /gsd:autonomous --from 8
 Notes:
 

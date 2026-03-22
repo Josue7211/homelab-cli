@@ -165,10 +165,10 @@
 
 - [x] **GLU-01**: Show VPN provider info (`gluetun provider`)
 - [x] **GLU-02**: List available servers/regions (`gluetun servers`)
-- [ ] **GLU-03**: Switch server/region (`gluetun switch <server>`)
+- [x] **GLU-03**: Switch server/region (`gluetun switch <server>`)
 - [x] **GLU-04**: Show DNS config (`gluetun dns`)
 - [x] **GLU-05**: Show port forward status and history (`gluetun ports`)
-- [ ] **GLU-06**: Check for DNS leaks (`gluetun leak-test`)
+- [x] **GLU-06**: Check for DNS leaks (`gluetun leak-test`)
 
 ### Vault — Expanded Management
 
@@ -334,10 +334,10 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | SAB-08 | Phase 10: SABnzbd | Complete |
 | GLU-01 | Phase 11: Gluetun | Complete |
 | GLU-02 | Phase 11: Gluetun | Complete |
-| GLU-03 | Phase 11: Gluetun | Pending |
+| GLU-03 | Phase 11: Gluetun | Complete |
 | GLU-04 | Phase 11: Gluetun | Complete |
 | GLU-05 | Phase 11: Gluetun | Complete |
-| GLU-06 | Phase 11: Gluetun | Pending |
+| GLU-06 | Phase 11: Gluetun | Complete |
 | OVR-01 | Phase 12: Overseerr | Pending |
 | OVR-02 | Phase 12: Overseerr | Pending |
 | OVR-03 | Phase 12: Overseerr | Pending |

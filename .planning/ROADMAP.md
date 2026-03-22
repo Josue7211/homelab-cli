@@ -20,7 +20,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 - [ ] **Phase 8: AdGuard** - DHCP leases, DNS rewrites, client management, and rule removal
 - [ ] **Phase 9: OPNsense** - Firewall rule CRUD, aliases, DHCP mappings, VPN, and traffic stats
 - [x] **Phase 10: SABnzbd** - Queue item management, priorities, speed limits, and server stats (completed 2026-03-22)
-- [ ] **Phase 11: Gluetun** - VPN provider info, server switching, DNS config, and leak testing
+- [x] **Phase 11: Gluetun** - VPN provider info, server switching, DNS config, and leak testing (completed 2026-03-22)
 - [ ] **Phase 12: Overseerr** - Bulk approval, user/quota listing, request details, and service info
 - [ ] **Phase 13: Vault** - Item CRUD, folder listing, password generation, and TOTP codes
 - [ ] **Phase 14: Firecrawl** - Custom scrape options, batch scrape, crawl options, and job management
@@ -186,7 +186,7 @@ Plans:
 
 Plans:
 - [x] 11-01-PLAN.md — VPN info commands (provider, servers, dns, ports)
-- [ ] 11-02-PLAN.md — Server switching (switch) + leak testing (leak-test) + help text update
+- [x] 11-02-PLAN.md — Server switching (switch) + leak testing (leak-test) + help text update
 
 ### Phase 12: Overseerr
 **Goal**: Users can manage requests in bulk, view users/quotas, and inspect service configuration from the command line
@@ -265,7 +265,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
-| 11. Gluetun | 1/2 | In Progress|  |
+| 11. Gluetun | 2/2 | Complete   | 2026-03-22 |
 | 12. Overseerr | 0/? | Not started | - |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
