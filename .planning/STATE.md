@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 10-02-PLAN.md (SABnzbd configuration commands)
-last_updated: "2026-03-22T11:09:39.727Z"
+stopped_at: Completed 11-01-PLAN.md (Gluetun read-only commands)
+last_updated: "2026-03-22T11:20:58.340Z"
 progress:
   total_phases: 16
   completed_phases: 10
-  total_plans: 23
-  completed_plans: 23
+  total_plans: 25
+  completed_plans: 24
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 10 — sabnzbd
+**Current focus:** Phase 11 — gluetun
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 11 (gluetun) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Plan: Not started
 | Phase 09 P02 | 2min | 2 tasks | 1 files |
 | Phase 10-sabnzbd P01 | 2min | 1 tasks | 1 files |
 | Phase 10-sabnzbd P02 | 2min | 2 tasks | 1 files |
+| Phase 11-gluetun P01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,7 @@ Recent decisions affecting current work:
 - [Phase 09]: Used os.environ pattern for dhcp-add payload; help text reorganized into 9 sections (DASHBOARD, NETWORK, FIREWALL, ALIASES, VPN, SERVICES, DIAGNOSTICS, FIRMWARE, BACKUP)
 - [Phase 10-sabnzbd]: Used os.environ NZO_ID pattern in python3 for shell injection safety; priority accepts named levels and numeric values
 - [Phase 10-sabnzbd]: cmd_limit reads speedlimit from queue response for display, uses config mode to set; cmd_servers uses get_config section=servers; help text organized into 5 sections
+- [Phase 11-gluetun]: cmd_ports uses dual-endpoint fallback: /v1/portforwarding then /v1/openvpn/portforwarded for legacy compat; server filter via FILTER env var to python3
 
 ### Pending Todos
 
@@ -130,8 +132,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T11:06:30.189Z
-Stopped at: Completed 10-02-PLAN.md (SABnzbd configuration commands)
+Last session: 2026-03-22T11:20:58.335Z
+Stopped at: Completed 11-01-PLAN.md (Gluetun read-only commands)
 Resume with: /gsd:autonomous --from 8
 Notes:
 

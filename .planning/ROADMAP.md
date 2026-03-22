@@ -185,7 +185,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — VPN info commands (provider, servers, dns, ports)
+- [x] 11-01-PLAN.md — VPN info commands (provider, servers, dns, ports)
 - [ ] 11-02-PLAN.md — Server switching (switch) + leak testing (leak-test) + help text update
 
 ### Phase 12: Overseerr
@@ -265,7 +265,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 8. AdGuard | 0/2 | Planning complete | - |
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
-| 11. Gluetun | 0/2 | Planning complete | - |
+| 11. Gluetun | 1/2 | In Progress|  |
 | 12. Overseerr | 0/? | Not started | - |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
