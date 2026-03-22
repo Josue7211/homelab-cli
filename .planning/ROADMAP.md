@@ -72,7 +72,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Library management commands (add, delete, download, rename)
-- [ ] 03-02-PLAN.md — Configuration listing commands (profiles, rootfolders, tags, tag-add, indexers)
+- [x] 03-02-PLAN.md — Configuration listing commands (profiles, rootfolders, tags, tag-add, indexers)
 - [ ] 03-03-PLAN.md — Maintenance commands (blocklist, blocklist-clear, backup, logs, restart)
 
 ### Phase 4: Proxmox

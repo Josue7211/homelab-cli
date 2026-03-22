@@ -54,11 +54,11 @@
 
 ### ARR Suite — Configuration
 
-- [ ] **ARR-05**: List quality profiles (`arr profiles <app>`)
-- [ ] **ARR-06**: List root folders (`arr rootfolders <app>`)
-- [ ] **ARR-07**: List tags (`arr tags <app>`)
-- [ ] **ARR-08**: Create tag (`arr tag-add <app> <label>`)
-- [ ] **ARR-09**: List indexers (`arr indexers [app]`)
+- [x] **ARR-05**: List quality profiles (`arr profiles <app>`)
+- [x] **ARR-06**: List root folders (`arr rootfolders <app>`)
+- [x] **ARR-07**: List tags (`arr tags <app>`)
+- [x] **ARR-08**: Create tag (`arr tag-add <app> <label>`)
+- [x] **ARR-09**: List indexers (`arr indexers [app]`)
 
 ### ARR Suite — Maintenance
 
@@ -261,11 +261,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | ARR-02 | Phase 3: ARR Suite | Complete |
 | ARR-03 | Phase 3: ARR Suite | Complete |
 | ARR-04 | Phase 3: ARR Suite | Complete |
-| ARR-05 | Phase 3: ARR Suite | Pending |
-| ARR-06 | Phase 3: ARR Suite | Pending |
-| ARR-07 | Phase 3: ARR Suite | Pending |
-| ARR-08 | Phase 3: ARR Suite | Pending |
-| ARR-09 | Phase 3: ARR Suite | Pending |
+| ARR-05 | Phase 3: ARR Suite | Complete |
+| ARR-06 | Phase 3: ARR Suite | Complete |
+| ARR-07 | Phase 3: ARR Suite | Complete |
+| ARR-08 | Phase 3: ARR Suite | Complete |
+| ARR-09 | Phase 3: ARR Suite | Complete |
 | ARR-10 | Phase 3: ARR Suite | Pending |
 | ARR-11 | Phase 3: ARR Suite | Pending |
 | ARR-12 | Phase 3: ARR Suite | Pending |

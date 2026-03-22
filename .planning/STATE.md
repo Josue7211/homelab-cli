@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-01-PLAN.md (ARR library management commands)
-last_updated: "2026-03-22T07:40:11.264Z"
+stopped_at: Completed 03-02-PLAN.md (ARR configuration listing commands)
+last_updated: "2026-03-22T07:46:11.752Z"
 progress:
   total_phases: 16
   completed_phases: 2
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 ## Current Position
 
 Phase: 03 (arr-suite) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 2 of 3
 | Phase 02 P02 | 1min | 2 tasks | 1 files |
 | Phase 02 P03 | 2min | 2 tasks | 1 files |
 | Phase 03 P01 | 6min | 2 tasks | 1 files |
+| Phase 03 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase 03]: Auto-fetch first quality profile and root folder when not specified in cmd_add
 - [Phase 03]: Lidarr rename uses RenameFiles command (not RenameArtist) per Lidarr API spec
 - [Phase 03]: Library management commands guard against Prowlarr/Bazarr with clear error messages
+- [Phase 03]: Profiles/rootfolders limited to sonarr/radarr/lidarr; tags support prowlarr too; indexers iterate ALL_APPS when no app specified
 
 ### Pending Todos
 
@@ -85,8 +87,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T07:40:11.261Z
-Stopped at: Completed 03-01-PLAN.md (ARR library management commands)
+Last session: 2026-03-22T07:46:11.749Z
+Stopped at: Completed 03-02-PLAN.md (ARR configuration listing commands)
 Resume with: /gsd:autonomous --from 2
 Notes:
 
