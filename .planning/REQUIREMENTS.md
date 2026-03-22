@@ -181,9 +181,9 @@
 
 ### Firecrawl — Expanded Management
 
-- [ ] **FC-01**: Scrape with custom options (`firecrawl scrape <url> --wait <ms> --headers <json>`)
-- [ ] **FC-02**: Batch scrape multiple URLs (`firecrawl batch <url1> <url2>...`)
-- [ ] **FC-03**: Crawl with depth/filter options (`firecrawl crawl <url> --depth <n> --include <pattern>`)
+- [x] **FC-01**: Scrape with custom options (`firecrawl scrape <url> --wait <ms> --headers <json>`)
+- [x] **FC-02**: Batch scrape multiple URLs (`firecrawl batch <url1> <url2>...`)
+- [x] **FC-03**: Crawl with depth/filter options (`firecrawl crawl <url> --depth <n> --include <pattern>`)
 - [ ] **FC-04**: Cancel running crawl job (`firecrawl cancel <job_id>`)
 - [ ] **FC-05**: List recent jobs (`firecrawl jobs`)
 
@@ -349,9 +349,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | BW-04 | Phase 13: Vault | Complete |
 | BW-05 | Phase 13: Vault | Complete |
 | BW-06 | Phase 13: Vault | Complete |
-| FC-01 | Phase 14: Firecrawl | Pending |
-| FC-02 | Phase 14: Firecrawl | Pending |
-| FC-03 | Phase 14: Firecrawl | Pending |
+| FC-01 | Phase 14: Firecrawl | Complete |
+| FC-02 | Phase 14: Firecrawl | Complete |
+| FC-03 | Phase 14: Firecrawl | Complete |
 | FC-04 | Phase 14: Firecrawl | Pending |
 | FC-05 | Phase 14: Firecrawl | Pending |
 | KOEL-01 | Phase 15: Koel | Pending |
