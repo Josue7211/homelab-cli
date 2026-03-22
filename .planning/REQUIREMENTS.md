@@ -74,14 +74,14 @@
 - [x] **PVE-02**: Modify VM config (`homelab set <vmid> KEY=VAL...`)
 - [x] **PVE-03**: Resize VM disk (`homelab resize <vmid> <disk> <size>`)
 - [x] **PVE-04**: Clone VM (`homelab clone <vmid> [--name <name>]`)
-- [ ] **PVE-05**: Create snapshot (`homelab snapshot-create <vmid> <name>`)
-- [ ] **PVE-06**: Restore snapshot with confirmation (`homelab snapshot-restore <vmid> <name>`)
-- [ ] **PVE-07**: Delete snapshot with confirmation (`homelab snapshot-delete <vmid> <name>`)
+- [x] **PVE-05**: Create snapshot (`homelab snapshot-create <vmid> <name>`)
+- [x] **PVE-06**: Restore snapshot with confirmation (`homelab snapshot-restore <vmid> <name>`)
+- [x] **PVE-07**: Delete snapshot with confirmation (`homelab snapshot-delete <vmid> <name>`)
 
 ### Proxmox/Homelab — Cluster
 
-- [ ] **PVE-08**: List cluster nodes (`homelab nodes`)
-- [ ] **PVE-09**: List recent tasks (`homelab tasks [count]`)
+- [x] **PVE-08**: List cluster nodes (`homelab nodes`)
+- [x] **PVE-09**: List recent tasks (`homelab tasks [count]`)
 - [ ] **PVE-10**: Backup VM (`homelab backup <vmid>`)
 - [ ] **PVE-11**: Migrate VM to another node (`homelab migrate <vmid> <node>`)
 
@@ -275,11 +275,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PVE-02 | Phase 4: Proxmox | Complete |
 | PVE-03 | Phase 4: Proxmox | Complete |
 | PVE-04 | Phase 4: Proxmox | Complete |
-| PVE-05 | Phase 4: Proxmox | Pending |
-| PVE-06 | Phase 4: Proxmox | Pending |
-| PVE-07 | Phase 4: Proxmox | Pending |
-| PVE-08 | Phase 4: Proxmox | Pending |
-| PVE-09 | Phase 4: Proxmox | Pending |
+| PVE-05 | Phase 4: Proxmox | Complete |
+| PVE-06 | Phase 4: Proxmox | Complete |
+| PVE-07 | Phase 4: Proxmox | Complete |
+| PVE-08 | Phase 4: Proxmox | Complete |
+| PVE-09 | Phase 4: Proxmox | Complete |
 | PVE-10 | Phase 4: Proxmox | Pending |
 | PVE-11 | Phase 4: Proxmox | Pending |
 | PLEX-01 | Phase 5: Plex | Pending |
