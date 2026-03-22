@@ -482,6 +482,83 @@ cmd_run_task() {
     ok "  Task '${task_id}' started"
 }
 
+# ── Server Info ────────────────────────────────────────────────
+
+cmd_plugins() {
+    header "JELLYFIN PLUGINS"
+    local plugins
+    plugins=$(jellyfin_api GET "/Plugins") || die "Cannot connect to Jellyfin"
+    echo "$plugins" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No plugins installed.')
+    sys.exit()
+print(f'  {len(data)} plugin(s)\n')
+fmt = '  {:<30} {:<12} {:<10} {}'
+print(fmt.format('NAME', 'VERSION', 'STATUS', 'DESCRIPTION'))
+print(fmt.format('----', '-------', '------', '-----------'))
+for p in data:
+    name = p.get('Name', '?')
+    version = p.get('Version', '?')
+    status = p.get('Status', '?')
+    desc = p.get('Description', '')[:50]
+    status_color = '\033[32m' if status == 'Active' else '\033[33m'
+    print(f'  {name:<30} {version:<12} {status_color}{status:<10}\033[0m {desc}')
+"
+}
+
+cmd_activity() {
+    local count="${1:-25}"
+    header "JELLYFIN ACTIVITY LOG (last $count)"
+    local log
+    log=$(jellyfin_api GET "/System/ActivityLog/Entries?Limit=${count}") || die "Cannot connect to Jellyfin"
+    echo "$log" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+items = data.get('Items', [])
+if not items:
+    print('  No activity log entries.')
+    sys.exit()
+for entry in items:
+    date = entry.get('Date', '?')[:16].replace('T', ' ') if entry.get('Date') else '?'
+    name = entry.get('Name', '?')
+    etype = entry.get('Type', '?')
+    severity = entry.get('Severity', 'Information')
+    short_text = entry.get('ShortOverview', '') or ''
+    sev_color = '\033[31m' if severity == 'Error' else '\033[33m' if severity == 'Warning' else ''
+    sev_reset = '\033[0m' if sev_color else ''
+    print(f'  {date}  {sev_color}{severity:<12}{sev_reset} {name}')
+    if short_text:
+        print(f'                               {short_text}')
+"
+}
+
+cmd_info() {
+    header "JELLYFIN SERVER INFO"
+    local info
+    info=$(jellyfin_api GET "/System/Info") || die "Cannot connect to Jellyfin"
+    echo "$info" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(f'  Server Name:     {d.get(\"ServerName\", \"?\")}'  )
+print(f'  Version:         {d.get(\"Version\", \"?\")}'  )
+print(f'  OS:              {d.get(\"OperatingSystem\", \"?\")}'  )
+print(f'  Architecture:    {d.get(\"SystemArchitecture\", \"?\")}'  )
+print(f'  Local Address:   {d.get(\"LocalAddress\", \"?\")}'  )
+print(f'  Web Path:        {d.get(\"WebPath\", \"?\")}'  )
+print(f'  Has Updates:     {\"yes\" if d.get(\"HasUpdateAvailable\") else \"no\"}'  )
+print(f'  Startup Time:    {d.get(\"StartupWizardCompleted\", \"?\")}'  )
+print(f'  Item-by-name:    {d.get(\"ItemsByNamePath\", \"?\")}'  )
+print(f'  Cache Path:      {d.get(\"CachePath\", \"?\")}'  )
+print(f'  Log Path:        {d.get(\"LogPath\", \"?\")}'  )
+print(f'  Transcode Path:  {d.get(\"TranscodingTempPath\", \"-\")}'  )
+print(f'  Internal Meta:   {d.get(\"InternalMetadataPath\", \"?\")}'  )
+print(f'  Program Data:    {d.get(\"ProgramDataPath\", \"?\")}'  )
+print(f'  Can Self-Update: {\"yes\" if d.get(\"CanSelfUpdate\") else \"no\"}'  )
+"
+}
+
 # ── Help ───────────────────────────────────────────────────────
 cmd_help() {
     show_version "jellyfin"
@@ -542,6 +619,9 @@ main() {
         user-rm|user-delete)    cmd_user_rm "$@" ;;
         tasks)                  cmd_tasks ;;
         run-task)               cmd_run_task "$@" ;;
+        plugins)                cmd_plugins ;;
+        activity)               cmd_activity "${1:-25}" ;;
+        info)                   cmd_info ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
