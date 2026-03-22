@@ -365,6 +365,56 @@ cmd_snapshot_delete() {
     ok "Snapshot '$snapname' deleted."
 }
 
+# ── Cluster ──────────────────────────────────────────────────────
+
+cmd_nodes() {
+    header "Cluster Nodes"
+    pve_api GET "/cluster/resources?type=node" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)['data']
+if not data:
+    print('  No nodes found.')
+    sys.exit()
+print(f'  {\"Node\":<15} {\"Status\":<10} {\"CPU\":<10} {\"Memory\":<18} {\"Uptime\"}')
+print(f'  {\"─\"*14} {\"─\"*9} {\"─\"*9} {\"─\"*17} {\"─\"*12}')
+for n in sorted(data, key=lambda x: x.get('node', '')):
+    name = n.get('node', '?')
+    status = n.get('status', '?')
+    cpu = f'{n.get(\"cpu\", 0):.0%}'
+    mem = n.get('mem', 0) / 1024**3
+    maxmem = n.get('maxmem', 0) / 1024**3
+    mem_str = f'{mem:.1f}/{maxmem:.1f}GB'
+    uptime_s = n.get('uptime', 0)
+    uptime = f'{uptime_s//86400}d {(uptime_s%86400)//3600}h' if uptime_s else '-'
+    print(f'  {name:<15} {status:<10} {cpu:<10} {mem_str:<18} {uptime}')
+"
+}
+
+cmd_tasks() {
+    local count="${1:-20}"
+    header "Recent Tasks (last $count)"
+    pve_api GET "/cluster/tasks" | python3 -c "
+import sys, json, datetime
+data = json.load(sys.stdin)['data']
+tasks = sorted(data, key=lambda x: x.get('starttime', 0), reverse=True)[:$count]
+if not tasks:
+    print('  No tasks found.')
+    sys.exit()
+print(f'  {\"UPID\":<58} {\"Type\":<14} {\"Status\":<10} {\"Node\":<8} {\"Started\"}')
+print(f'  {\"─\"*57} {\"─\"*13} {\"─\"*9} {\"─\"*7} {\"─\"*16}')
+for t in tasks:
+    upid = t.get('upid', '?')
+    # Truncate UPID for display
+    upid_short = upid[-55:] if len(upid) > 55 else upid
+    ttype = t.get('type', '?')
+    status = t.get('status', 'running')
+    node = t.get('node', '?')
+    started = t.get('starttime', 0)
+    started_str = datetime.datetime.fromtimestamp(started).strftime('%Y-%m-%d %H:%M') if started else '-'
+    print(f'  {upid_short:<58} {ttype:<14} {status:<10} {node:<8} {started_str}')
+"
+}
+
 # ── Portainer shortcuts ──────────────────────────────────────────
 
 cmd_stacks() {
@@ -458,6 +508,10 @@ SNAPSHOTS:
   snapshot-restore <vmid> <name>               Restore snapshot (destructive)
   snapshot-delete <vmid> <name>                Delete snapshot (irreversible)
 
+CLUSTER:
+  nodes                             List cluster nodes
+  tasks [count]                     Recent tasks (default: 20)
+
 PORTAINER (Docker):
   stacks [instance]               List stacks (services|plex, or both)
   containers [instance]           List containers
@@ -470,6 +524,14 @@ EXAMPLES:
   homelab vms
   homelab vm 100
   homelab start 300
+  homelab config 100
+  homelab set 100 memory=4096 cores=2
+  homelab resize 100 scsi0 +10G
+  homelab clone 100 --name my-clone
+  homelab snapshot-create 100 pre-upgrade --desc "Before upgrade"
+  homelab snapshot-restore 100 pre-upgrade
+  homelab nodes
+  homelab tasks 50
   homelab stacks plex
   homelab logs plex koel 50
   homelab redeploy plex music
@@ -498,6 +560,8 @@ main() {
         snapshot-create|snap-create)    cmd_snapshot_create "$@" ;;
         snapshot-restore|snap-restore)  cmd_snapshot_restore "$1" "$2" ;;
         snapshot-delete|snap-delete)    cmd_snapshot_delete "$1" "$2" ;;
+        nodes)                          cmd_nodes ;;
+        tasks)                          cmd_tasks "${1:-}" ;;
         stacks)             cmd_stacks "${1:-}" ;;
         containers|ps)      cmd_containers "${1:-}" ;;
         logs)               cmd_logs "$@" ;;
