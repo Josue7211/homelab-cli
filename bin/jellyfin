@@ -429,6 +429,59 @@ sys.exit(1)
     ok "  User '$name' deleted"
 }
 
+# ── Task Management ──────────────────────────────────────────
+
+cmd_tasks() {
+    header "JELLYFIN SCHEDULED TASKS"
+    local tasks
+    tasks=$(jellyfin_api GET "/ScheduledTasks") || die "Cannot connect to Jellyfin"
+    echo "$tasks" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No scheduled tasks found.')
+    sys.exit()
+print(f'  {len(data)} task(s)\n')
+for t in data:
+    name = t.get('Name', '?')
+    state = t.get('State', '?')
+    task_id = t.get('Id', '?')
+    last_exec = t.get('LastExecutionResult', {})
+    last_status = last_exec.get('Status', 'Never') if last_exec else 'Never'
+    last_end = last_exec.get('EndTimeUtc', '')[:16].replace('T', ' ') if last_exec and last_exec.get('EndTimeUtc') else '-'
+    triggers = t.get('Triggers', [])
+    trigger_strs = []
+    for tr in triggers[:2]:
+        ttype = tr.get('Type', '?')
+        if ttype == 'DailyTrigger':
+            trigger_strs.append(f'daily@{tr.get(\"TimeOfDayTicks\", 0) // 36000000000:02d}:00')
+        elif ttype == 'IntervalTrigger':
+            hours = tr.get('IntervalTicks', 0) // 36000000000
+            trigger_strs.append(f'every {hours}h')
+        elif ttype == 'WeeklyTrigger':
+            trigger_strs.append(f'weekly {tr.get(\"DayOfWeek\", \"?\")}')
+        elif ttype == 'StartupTrigger':
+            trigger_strs.append('on startup')
+        else:
+            trigger_strs.append(ttype)
+    trigger_info = ', '.join(trigger_strs) if trigger_strs else 'manual'
+    state_color = '\033[32m' if state == 'Idle' else '\033[33m' if state == 'Running' else ''
+    print(f'  {state_color}{state:<10}\033[0m \033[1m{name}\033[0m')
+    print(f'           Last: {last_status} ({last_end})  Trigger: {trigger_info}')
+    print(f'           \033[2mID: {task_id}\033[0m')
+    print()
+"
+}
+
+cmd_run_task() {
+    local task_id="${1:-}"
+    [[ -z "$task_id" ]] && die "Usage: jellyfin run-task <task_id>"
+
+    header "JELLYFIN RUN TASK"
+    jellyfin_api POST "/ScheduledTasks/Running/${task_id}" || die "Failed to start task '${task_id}'"
+    ok "  Task '${task_id}' started"
+}
+
 # ── Help ───────────────────────────────────────────────────────
 cmd_help() {
     show_version "jellyfin"
@@ -487,6 +540,8 @@ main() {
         users|user-list)        cmd_users ;;
         user-add|user-create)   cmd_user_add "$@" ;;
         user-rm|user-delete)    cmd_user_rm "$@" ;;
+        tasks)                  cmd_tasks ;;
+        run-task)               cmd_run_task "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             err "Unknown command: $cmd"
