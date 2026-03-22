@@ -312,6 +312,128 @@ else:
     fi
 }
 
+cmd_switch() {
+    local country="${1:-}"
+    local city="${2:-}"
+    [[ -z "$country" ]] && die "Usage: gluetun switch <country> [city]"
+
+    info "  Switching VPN server..."
+
+    # Build JSON payload safely via python3
+    local payload
+    payload=$(COUNTRY="$country" CITY="$city" python3 -c "
+import json, os
+settings = {}
+settings['server_countries'] = [os.environ['COUNTRY']]
+city = os.environ.get('CITY', '')
+if city:
+    settings['server_cities'] = [city]
+print(json.dumps(settings))
+") || die "Failed to build settings payload"
+
+    # Apply new server settings
+    gluetun_put "/v1/vpn/settings" "$payload" >/dev/null 2>&1 || die "Failed to update VPN settings"
+
+    info "  Waiting for reconnect..."
+    sleep 3
+
+    # Check new status
+    local status
+    status=$(gluetun_get "/v1/openvpn/status") 2>/dev/null
+    if [[ -n "$status" ]]; then
+        echo "$status" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+s = d.get('status', '?')
+color = '\033[32m' if s == 'running' else '\033[33m'
+print(f'  VPN Status:  {color}{s}\033[0m')
+" 2>/dev/null
+    fi
+
+    # Show new public IP
+    local ip
+    ip=$(gluetun_get "/v1/publicip/ip") 2>/dev/null
+    if [[ -n "$ip" ]]; then
+        echo "$ip" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ip = d.get('public_ip', d.get('ip', '?'))
+region = d.get('region', '')
+country = d.get('country', '')
+loc = []
+if region: loc.append(region)
+if country: loc.append(country)
+loc_str = f' ({\", \".join(loc)})' if loc else ''
+print(f'  New IP:      {ip}{loc_str}')
+" 2>/dev/null
+    fi
+
+    ok "  Server switched to $country${city:+ / $city}"
+}
+
+cmd_leak_test() {
+    header "DNS LEAK TEST"
+
+    # Get public IP from Gluetun
+    local ip_data
+    ip_data=$(gluetun_get "/v1/publicip/ip") || die "Can't get public IP from Gluetun"
+
+    local public_ip
+    public_ip=$(echo "$ip_data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d.get('public_ip', d.get('ip', '')))
+") || die "Can't parse public IP"
+
+    [[ -z "$public_ip" ]] && die "Public IP not available"
+    echo "  Public IP:   $public_ip"
+
+    # Show IP geo info if available
+    echo "$ip_data" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+region = d.get('region', '')
+country = d.get('country', '')
+if region or country:
+    loc = []
+    if country: loc.append(country)
+    if region: loc.append(region)
+    print(f'  Location:    {\", \".join(loc)}')
+" 2>/dev/null
+
+    # Reverse DNS lookup
+    local rdns=""
+    if command -v host &>/dev/null; then
+        rdns=$(host "$public_ip" 2>/dev/null | grep -oP 'pointer \K.*' | sed 's/\.$//' || true)
+    elif command -v nslookup &>/dev/null; then
+        rdns=$(nslookup "$public_ip" 2>/dev/null | grep -oP 'name = \K.*' | sed 's/\.$//' || true)
+    elif command -v dig &>/dev/null; then
+        rdns=$(dig -x "$public_ip" +short 2>/dev/null | sed 's/\.$//' || true)
+    fi
+
+    if [[ -n "$rdns" ]]; then
+        echo "  Reverse DNS: $rdns"
+    else
+        echo "  Reverse DNS: (no record)"
+    fi
+
+    # Verdict: check if rDNS matches known VPN providers
+    local rdns_lower
+    rdns_lower=$(echo "$rdns" | tr '[:upper:]' '[:lower:]')
+    local vpn_patterns="mullvad\|nordvpn\|proton\|surfshark\|privateinternetaccess\|pia\|expressvpn\|cyberghost\|windscribe\|ivpn\|airvpn\|ovpn\|wevpn"
+
+    echo ""
+    if [[ -n "$rdns" ]] && echo "$rdns_lower" | grep -qi "$vpn_patterns"; then
+        ok "  Result:      PASS - IP reverse DNS matches VPN provider"
+    elif [[ -z "$rdns" ]]; then
+        ok "  Result:      PASS - No reverse DNS (typical for VPN)"
+    else
+        warn "  Result:      WARNING - Reverse DNS does not match known VPN provider"
+        warn "               Hostname: $rdns"
+        warn "               This may indicate a DNS leak or non-VPN IP"
+    fi
+}
+
 cmd_help() {
     show_version "gluetun"
     cat <<'HELP'
@@ -325,24 +447,31 @@ STATUS:
   status                      VPN status, public IP, and forwarded port
   ip                          Show current public IP
   port                        Show forwarded port
-  provider                    VPN provider, protocol, and server selection
-  servers [filter]            List available servers (filter by region/country)
-  dns                         DNS-over-HTTPS configuration
-  ports                       Port forwarding status
+
+PROVIDER:
+  provider                    Show VPN provider info and server selection
+  servers [filter]            List available servers (filter by country/region)
 
 CONTROL:
   start                       Start the VPN
   stop                        Stop the VPN
   restart                     Restart the VPN
+  switch <country> [city]     Switch to a different VPN server
+
+DIAGNOSTICS:
+  dns                         Show DNS-over-HTTPS configuration
+  ports                       Show port forwarding status
+  leak-test                   Check for DNS leaks via reverse DNS
 
 EXAMPLES:
   gluetun status              Full VPN status overview
-  gluetun ip                  Quick IP check
-  gluetun provider            Show VPN provider details
-  gluetun servers us          List US servers
-  gluetun dns                 Show DNS configuration
+  gluetun provider            Show VPN provider and server details
+  gluetun servers us          List servers in the US
+  gluetun switch Netherlands  Switch to a Dutch server
+  gluetun switch Germany Berlin  Switch to Berlin
+  gluetun dns                 View DNS configuration
   gluetun ports               Check forwarded ports
-  gluetun restart             Reconnect the VPN
+  gluetun leak-test           Verify VPN is protecting your IP
 HELP
 }
 
@@ -366,6 +495,8 @@ main() {
         servers)            cmd_servers "$1" ;;
         dns)                cmd_dns ;;
         ports)              cmd_ports ;;
+        switch)             cmd_switch "$@" ;;
+        leak-test)          cmd_leak_test ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
