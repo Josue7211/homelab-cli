@@ -679,6 +679,77 @@ cmd_delete() {
     ok "  $label $id deleted from $app."
 }
 
+cmd_download() {
+    local app="${1:-}" id="${2:-}"
+    [[ -z "$app" || -z "$id" ]] && die "Usage: arr download <sonarr|radarr|lidarr> <id>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Download not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local payload
+    case "$app" in
+        sonarr)
+            payload=$(ID="$id" python3 -c "
+import json, os
+print(json.dumps({'name': 'SeriesSearch', 'seriesId': int(os.environ['ID'])}))
+")
+            ;;
+        radarr)
+            payload=$(ID="$id" python3 -c "
+import json, os
+print(json.dumps({'name': 'MoviesSearch', 'movieIds': [int(os.environ['ID'])]}))")
+            ;;
+        lidarr)
+            payload=$(ID="$id" python3 -c "
+import json, os
+print(json.dumps({'name': 'ArtistSearch', 'artistId': int(os.environ['ID'])}))
+")
+            ;;
+    esac
+
+    info "Triggering search for item $id on $app..."
+    arr_api "$app" POST "/command" "$payload" > /dev/null || die "Failed to trigger search on $app"
+    ok "  Search triggered for item $id on $app."
+}
+
+cmd_rename() {
+    local app="${1:-}" id="${2:-}"
+    [[ -z "$app" || -z "$id" ]] && die "Usage: arr rename <sonarr|radarr|lidarr> <id>"
+    app=$(resolve_app "$app")
+
+    case "$app" in
+        sonarr|radarr|lidarr) ;;
+        *) die "Rename not supported for $app (only sonarr, radarr, lidarr)" ;;
+    esac
+
+    local payload
+    case "$app" in
+        sonarr)
+            payload=$(ID="$id" python3 -c "
+import json, os
+print(json.dumps({'name': 'RenameSeries', 'seriesIds': [int(os.environ['ID'])]}))")
+            ;;
+        radarr)
+            payload=$(ID="$id" python3 -c "
+import json, os
+print(json.dumps({'name': 'RenameMovie', 'movieIds': [int(os.environ['ID'])]}))")
+            ;;
+        lidarr)
+            payload=$(ID="$id" python3 -c "
+import json, os
+print(json.dumps({'name': 'RenameFiles', 'artistId': int(os.environ['ID'])}))
+")
+            ;;
+    esac
+
+    info "Triggering rename for item $id on $app..."
+    arr_api "$app" POST "/command" "$payload" > /dev/null || die "Failed to trigger rename on $app"
+    ok "  Rename triggered for item $id on $app."
+}
+
 # ── Help ────────────────────────────────────────────────────────
 cmd_help() {
     show_version "arr"
@@ -711,6 +782,8 @@ LIBRARY:
 LIBRARY MANAGEMENT:
   add <app> <id> [--quality N] [--root /path]  Add series/movie/artist by ID
   delete <app> <id>               Delete series/movie/artist (with confirmation)
+  download <app> <id>             Trigger manual search/download for item
+  rename <app> <id>               Trigger file rename for item
 
 HISTORY:
   activity [app]                Recent download/import activity
@@ -731,6 +804,8 @@ EXAMPLES:
   arr add s 121361 --quality 1 --root /tv  Add series (tvdbId) to Sonarr
   arr add r 550                            Add movie (tmdbId) to Radarr
   arr delete sonarr 15                     Delete series ID 15 from Sonarr
+  arr download s 15                        Trigger search for series ID 15
+  arr rename r 42                          Rename movie files for movie ID 42
 HELP
 }
 
@@ -756,6 +831,8 @@ main() {
         diskspace|disk|df)      cmd_diskspace "${1:-}" ;;
         add)                    cmd_add "$@" ;;
         delete|del)             cmd_delete "$@" ;;
+        download|dl)            cmd_download "$@" ;;
+        rename|rn)              cmd_rename "$@" ;;
         help|--help|-h)         cmd_help ;;
         *)
             # Try as app shortcut: arr sonarr queue → arr queue sonarr
@@ -775,6 +852,8 @@ main() {
                     health)        cmd_health "$real_app" ;;
                     add)           cmd_add "$real_app" "$@" ;;
                     delete|del)    cmd_delete "$real_app" "$@" ;;
+                    download|dl)   cmd_download "$real_app" "$@" ;;
+                    rename|rn)     cmd_rename "$real_app" "$@" ;;
                     *)             die "Unknown subcommand: $subcmd" ;;
                 esac
             else
