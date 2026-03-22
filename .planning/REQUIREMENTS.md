@@ -133,9 +133,9 @@
 
 ### Overseerr — Expanded Management
 
-- [ ] **OVR-01**: Bulk approve pending requests (`overseerr approve-all`)
-- [ ] **OVR-02**: List users and quotas (`overseerr users`)
-- [ ] **OVR-03**: Show request detail (`overseerr request <id>`)
+- [x] **OVR-01**: Bulk approve pending requests (`overseerr approve-all`)
+- [x] **OVR-02**: List users and quotas (`overseerr users`)
+- [x] **OVR-03**: Show request detail (`overseerr request <id>`)
 - [ ] **OVR-04**: List available services/servers (`overseerr services`)
 - [ ] **OVR-05**: Show notification settings (`overseerr notifications`)
 
@@ -338,9 +338,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | GLU-04 | Phase 11: Gluetun | Complete |
 | GLU-05 | Phase 11: Gluetun | Complete |
 | GLU-06 | Phase 11: Gluetun | Complete |
-| OVR-01 | Phase 12: Overseerr | Pending |
-| OVR-02 | Phase 12: Overseerr | Pending |
-| OVR-03 | Phase 12: Overseerr | Pending |
+| OVR-01 | Phase 12: Overseerr | Complete |
+| OVR-02 | Phase 12: Overseerr | Complete |
+| OVR-03 | Phase 12: Overseerr | Complete |
 | OVR-04 | Phase 12: Overseerr | Pending |
 | OVR-05 | Phase 12: Overseerr | Pending |
 | BW-01 | Phase 13: Vault | Pending |

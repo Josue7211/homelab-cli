@@ -198,7 +198,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Bulk approve (approve-all) + user listing (users) + request detail (request-detail)
+- [x] 12-01-PLAN.md — Bulk approve (approve-all) + user listing (users) + request detail (request-detail)
 - [ ] 12-02-PLAN.md — Service listing (services) + notification agents (notifications) + help text update
 
 ### Phase 13: Vault
@@ -267,7 +267,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 2/2 | Complete    | 2026-03-22 |
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
-| 12. Overseerr | 0/2 | Planning complete | - |
+| 12. Overseerr | 1/2 | In Progress|  |
 | 13. Vault | 0/? | Not started | - |
 | 14. Firecrawl | 0/? | Not started | - |
 | 15. Koel | 0/? | Not started | - |

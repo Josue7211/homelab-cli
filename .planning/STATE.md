@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 11-02-PLAN.md (Gluetun switch + leak-test commands)
-last_updated: "2026-03-22T11:28:27.908Z"
+stopped_at: Completed 12-01-PLAN.md (Overseerr approve-all, users, request-detail)
+last_updated: "2026-03-22T11:39:29.537Z"
 progress:
   total_phases: 16
   completed_phases: 11
-  total_plans: 25
-  completed_plans: 25
+  total_plans: 27
+  completed_plans: 26
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 11 — gluetun
+**Current focus:** Phase 12 — overseerr
 
 ## Current Position
 
-Phase: 12
-Plan: Not started
+Phase: 12 (overseerr) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ Plan: Not started
 | Phase 10-sabnzbd P02 | 2min | 2 tasks | 1 files |
 | Phase 11-gluetun P01 | 2min | 2 tasks | 1 files |
 | Phase 11-gluetun P02 | 2min | 1 tasks | 1 files |
+| Phase 12-overseerr P01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,7 @@ Recent decisions affecting current work:
 - [Phase 10-sabnzbd]: cmd_limit reads speedlimit from queue response for display, uses config mode to set; cmd_servers uses get_config section=servers; help text organized into 5 sections
 - [Phase 11-gluetun]: cmd_ports uses dual-endpoint fallback: /v1/portforwarding then /v1/openvpn/portforwarded for legacy compat; server filter via FILTER env var to python3
 - [Phase 11-gluetun]: cmd_switch uses os.environ to pass country/city safely to python3 JSON builder; cmd_leak_test checks host/nslookup/dig in priority order for portability; help text reorganized into STATUS/PROVIDER/CONTROL/DIAGNOSTICS sections
+- [Phase 12-overseerr]: request-detail (not request) to avoid conflict with existing cmd_request; alias rd for brevity; permissions & 2 bit check for admin role; help text reorganized into 5 sections
 
 ### Pending Todos
 
@@ -134,8 +136,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T11:24:52.029Z
-Stopped at: Completed 11-02-PLAN.md (Gluetun switch + leak-test commands)
+Last session: 2026-03-22T11:39:29.528Z
+Stopped at: Completed 12-01-PLAN.md (Overseerr approve-all, users, request-detail)
 Resume with: /gsd:autonomous --from 8
 Notes:
 
