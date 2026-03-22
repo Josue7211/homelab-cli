@@ -237,7 +237,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — API helpers (koel_api, koel_login) + search, playlists, recently played commands
+- [x] 15-01-PLAN.md — API helpers (koel_api, koel_login) + search, playlists, recently played commands
 - [ ] 15-02-PLAN.md — Stats, albums, artists commands + help text update with LIBRARY section
 
 ### Phase 16: Help Text
@@ -273,5 +273,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
 | 13. Vault | 2/2 | Complete    | 2026-03-22 |
 | 14. Firecrawl | 2/2 | Complete    | 2026-03-22 |
-| 15. Koel | 0/2 | Planning complete | - |
+| 15. Koel | 1/2 | In Progress|  |
 | 16. Help Text | 0/? | Not started | - |

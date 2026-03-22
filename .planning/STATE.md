@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-03-22T12:27:23.364Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-22T12:37:23.336Z"
 progress:
   total_phases: 16
   completed_phases: 14
-  total_plans: 31
-  completed_plans: 31
+  total_plans: 33
+  completed_plans: 32
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 14 — firecrawl
+**Current focus:** Phase 15 — koel
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (koel) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Plan: Not started
 | Phase 13-vault P02 | 2min | 2 tasks | 1 files |
 | Phase 14-firecrawl P01 | 2min | 2 tasks | 1 files |
 | Phase 14-firecrawl P02 | 2min | 2 tasks | 1 files |
+| Phase 15-koel P01 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,7 @@ Recent decisions affecting current work:
 - [Phase 13-vault]: TOTP countdown uses python3 time.time() with 30-second standard period; help text reorganized into 6 sections (STATUS/LOOKUP/ITEM MANAGEMENT/UTILITIES/EXAMPLES/NOTE)
 - [Phase 14-firecrawl]: Flag parsing uses while-loop with positional fallback for backward compat; help text reorganized into SCRAPING/CRAWLING/DISCOVERY/SYSTEM sections
 - [Phase 14-firecrawl]: Local file cache at ~/.cache/homelab-cli/firecrawl-jobs for job tracking; help text reorganized into 6 sections with JOB MANAGEMENT
+- [Phase 15-koel]: Token caching uses find -mmin -1440 for 24-hour TTL; search results grouped into SONGS/ALBUMS/ARTISTS sections; playlists piped through format_table
 
 ### Pending Todos
 
@@ -146,8 +148,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T12:24:02.631Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-03-22T12:37:23.331Z
+Stopped at: Completed 15-01-PLAN.md
 Resume with: /gsd:autonomous --from 8
 Notes:
 

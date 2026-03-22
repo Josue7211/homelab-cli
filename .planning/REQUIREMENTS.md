@@ -189,9 +189,9 @@
 
 ### Koel — API Integration
 
-- [ ] **KOEL-01**: Search music library (`koel search <query>`)
-- [ ] **KOEL-02**: List playlists (`koel playlists`)
-- [ ] **KOEL-03**: Show recently played (`koel recent`)
+- [x] **KOEL-01**: Search music library (`koel search <query>`)
+- [x] **KOEL-02**: List playlists (`koel playlists`)
+- [x] **KOEL-03**: Show recently played (`koel recent`)
 - [ ] **KOEL-04**: Show library stats (`koel stats`)
 - [ ] **KOEL-05**: List albums/artists (`koel albums` / `koel artists`)
 
@@ -354,9 +354,9 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | FC-03 | Phase 14: Firecrawl | Complete |
 | FC-04 | Phase 14: Firecrawl | Complete |
 | FC-05 | Phase 14: Firecrawl | Complete |
-| KOEL-01 | Phase 15: Koel | Pending |
-| KOEL-02 | Phase 15: Koel | Pending |
-| KOEL-03 | Phase 15: Koel | Pending |
+| KOEL-01 | Phase 15: Koel | Complete |
+| KOEL-02 | Phase 15: Koel | Complete |
+| KOEL-03 | Phase 15: Koel | Complete |
 | KOEL-04 | Phase 15: Koel | Pending |
 | KOEL-05 | Phase 15: Koel | Pending |
 | HELP-01 | Phase 16: Help Text | Pending |
