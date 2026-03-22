@@ -154,10 +154,11 @@ Plans:
   1. User can create, delete, and enable/disable firewall rules, and apply pending changes
   2. User can create aliases and add DHCP static mappings
   3. User can list VPN tunnels and view traffic stats
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — Firewall rule commands (rule-add, rule-rm, rule-toggle) + alias creation (alias-add) + apply
+- [ ] 09-02-PLAN.md — DHCP static lease (dhcp-add) + VPN status (vpn) + traffic stats (traffic) + help text update
 
 ### Phase 10: SABnzbd
 **Goal**: Users can manage individual queue items, set priorities, control speed limits, and view server stats from the command line
@@ -260,7 +261,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 6. Jellyfin | 2/2 | Complete   | 2026-03-22 |
 | 7. qBittorrent | 2/2 | Complete | 2026-03-22 |
 | 8. AdGuard | 0/2 | Planning complete | - |
-| 9. OPNsense | 0/? | Not started | - |
+| 9. OPNsense | 0/2 | Planning complete | - |
 | 10. SABnzbd | 0/? | Not started | - |
 | 11. Gluetun | 0/? | Not started | - |
 | 12. Overseerr | 0/? | Not started | - |
