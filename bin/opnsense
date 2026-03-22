@@ -471,6 +471,120 @@ except:
     fi
 }
 
+cmd_dhcp_add() {
+    [[ $# -lt 3 ]] && die "Usage: opnsense dhcp-add <interface> <ip> <mac>"
+    local iface="$1" ip="$2" mac="$3"
+    local payload
+    payload=$(IFACE="$iface" IP="$ip" MAC="$mac" python3 -c "
+import json, os
+print(json.dumps({'lease': {
+    'interface': os.environ['IFACE'],
+    'ip': os.environ['IP'],
+    'mac': os.environ['MAC']
+}}))
+")
+    local resp
+    resp=$(opn_post "/dhcpv4/leases/addLease" "$payload")
+    local uuid
+    uuid=$(echo "$resp" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('uuid', ''))
+except:
+    print('')
+" 2>/dev/null)
+    if [[ -n "$uuid" ]]; then
+        ok "  Static DHCP lease added: $mac -> $ip (interface: $iface)"
+    else
+        die "Failed to add DHCP lease"
+    fi
+}
+
+cmd_vpn() {
+    header "VPN TUNNELS"
+    echo ""
+    echo -e "  ${BOLD}OPENVPN${RESET}"
+    opn_get "/openvpn/instances/search" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+rows = d.get('rows', [])
+if not rows:
+    print('  No OpenVPN instances found')
+    sys.exit()
+print(f'  {\"Description\":<30} {\"Role\":<10} {\"Status\":<12} {\"Address\"}')
+print(f'  {\"─\"*29} {\"─\"*9} {\"─\"*11} {\"─\"*20}')
+for r in rows:
+    desc = r.get('description', '?')[:29]
+    role = r.get('role', '?')
+    enabled = r.get('enabled', '0')
+    if enabled == '1':
+        status = '\033[32mEnabled\033[0m    '
+    else:
+        status = '\033[2mDisabled\033[0m   '
+    addr = r.get('server', r.get('remote', '-'))
+    print(f'  {desc:<30} {role:<10} {status} {addr}')
+" 2>/dev/null
+
+    echo ""
+    echo -e "  ${BOLD}IPSEC${RESET}"
+    opn_get "/ipsec/sessions" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    sessions = d if isinstance(d, list) else d.get('rows', [])
+    if not sessions:
+        print('  No IPsec sessions found')
+        sys.exit()
+    for s in sessions:
+        if isinstance(s, dict):
+            name = s.get('description', s.get('name', '?'))
+            local = s.get('local-addrs', s.get('local', '-'))
+            remote = s.get('remote-addrs', s.get('remote', '-'))
+            state = s.get('state', s.get('connected', '?'))
+            print(f'  {name:<30} Local: {local}  Remote: {remote}  State: {state}')
+except:
+    print('  No IPsec sessions found')
+" 2>/dev/null
+}
+
+cmd_traffic() {
+    header "TRAFFIC"
+    opn_get "/diagnostics/traffic/interface" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+if not d or not isinstance(d, dict):
+    print('  No traffic data')
+    sys.exit()
+print(f'  {\"Interface\":<15} {\"In Rate\":<15} {\"Out Rate\":<15} {\"Total In\":<15} {\"Total Out\"}')
+print(f'  {\"─\"*14} {\"─\"*14} {\"─\"*14} {\"─\"*14} {\"─\"*14}')
+def fmt_rate(bits):
+    try:
+        b = float(bits)
+        for u in ['bps','Kbps','Mbps','Gbps']:
+            if b < 1000: return f'{b:.1f} {u}'
+            b /= 1000
+        return f'{b:.1f} Tbps'
+    except: return '-'
+def fmt_bytes(b):
+    try:
+        b = float(b)
+        for u in ['B','KB','MB','GB','TB']:
+            if b < 1024: return f'{b:.1f} {u}'
+            b /= 1024
+        return f'{b:.1f} PB'
+    except: return '-'
+for iface, data in sorted(d.items()):
+    if not isinstance(data, dict):
+        continue
+    rin = fmt_rate(data.get('rate_bits_in', 0))
+    rout = fmt_rate(data.get('rate_bits_out', 0))
+    tin = fmt_bytes(data.get('cumulative_bytes_in', data.get('bytes_in', 0)))
+    tout = fmt_bytes(data.get('cumulative_bytes_out', data.get('bytes_out', 0)))
+    print(f'  {iface:<15} {rin:<15} {rout:<15} {tin:<15} {tout}')
+" 2>/dev/null
+}
+
 cmd_help() {
     show_version "opnsense"
     cat <<'HELP'
@@ -554,6 +668,9 @@ main() {
         rule-toggle)                cmd_rule_toggle "$1" ;;
         alias-add)                  cmd_alias_add "$@" ;;
         apply)                      cmd_apply ;;
+        dhcp-add)                   cmd_dhcp_add "$@" ;;
+        vpn)                        cmd_vpn ;;
+        traffic)                    cmd_traffic ;;
         help|--help|-h)             cmd_help ;;
         *)
             err "Unknown command: $cmd"
