@@ -23,7 +23,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 - [x] **Phase 11: Gluetun** - VPN provider info, server switching, DNS config, and leak testing (completed 2026-03-22)
 - [x] **Phase 12: Overseerr** - Bulk approval, user/quota listing, request details, and service info (completed 2026-03-22)
 - [x] **Phase 13: Vault** - Item CRUD, folder listing, password generation, and TOTP codes (completed 2026-03-22)
-- [ ] **Phase 14: Firecrawl** - Custom scrape options, batch scrape, crawl options, and job management
+- [x] **Phase 14: Firecrawl** - Custom scrape options, batch scrape, crawl options, and job management (completed 2026-03-22)
 - [ ] **Phase 15: Koel** - Music search, playlists, recently played, stats, and browsing
 - [ ] **Phase 16: Help Text** - Update all 14 CLI help texts to include new commands
 
@@ -225,7 +225,7 @@ Plans:
 
 Plans:
 - [x] 14-01-PLAN.md — Enhanced scrape (--wait, --headers) + batch scrape + enhanced crawl (--depth, --include, --exclude)
-- [ ] 14-02-PLAN.md — Job management (cancel, jobs) + help text update
+- [x] 14-02-PLAN.md — Job management (cancel, jobs) + help text update
 
 ### Phase 15: Koel
 **Goal**: Users can search, browse, and view stats for their music library via the Koel API from the command line
@@ -271,6 +271,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 11. Gluetun | 2/2 | Complete    | 2026-03-22 |
 | 12. Overseerr | 2/2 | Complete    | 2026-03-22 |
 | 13. Vault | 2/2 | Complete    | 2026-03-22 |
-| 14. Firecrawl | 1/2 | In Progress|  |
+| 14. Firecrawl | 2/2 | Complete   | 2026-03-22 |
 | 15. Koel | 0/? | Not started | - |
 | 16. Help Text | 0/? | Not started | - |
