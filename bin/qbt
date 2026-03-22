@@ -57,6 +57,40 @@ qbt_post() {
     fi
 }
 
+# ── Hash resolution ────────────────────────────────────────────
+
+resolve_hash() {
+    local input="${1:-}"
+    [[ -z "$input" ]] && die "Torrent hash or name required"
+
+    # If it looks like a 40-char hex hash, use directly
+    if [[ "$input" =~ ^[a-fA-F0-9]{40}$ ]]; then
+        echo "$input"
+        return 0
+    fi
+
+    # Otherwise search by name
+    local torrents
+    torrents=$(qbt_get "/api/v2/torrents/info?filter=all") || die "Can't get torrent list"
+    local hash
+    hash=$(echo "$torrents" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+needle = '${input}'.lower()
+for t in data:
+    if t.get('name', '').lower() == needle:
+        print(t['hash'])
+        sys.exit()
+# Partial match
+for t in data:
+    if needle in t.get('name', '').lower():
+        print(t['hash'])
+        sys.exit()
+sys.exit(1)
+") || die "Torrent not found: $input"
+    echo "$hash"
+}
+
 # ── Commands ───────────────────────────────────────────────────
 
 cmd_status() {
@@ -249,6 +283,118 @@ print(f'  Upload:   {fmt(up)}')
 "
 }
 
+cmd_info() {
+    local input="${1:-}"
+    [[ -z "$input" ]] && die "Usage: qbt info <hash|name>"
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    header "TORRENT INFO"
+
+    # Get torrent name from list
+    local tname
+    tname=$(qbt_get "/api/v2/torrents/info?hashes=${hash}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if data: print(data[0].get('name', '?'))
+else: print('?')
+") 2>/dev/null || true
+    echo -e "  Name: ${BOLD}${tname}${RESET}"
+    echo -e "  Hash: ${DIM}${hash}${RESET}"
+    echo ""
+
+    local props
+    props=$(qbt_get "/api/v2/torrents/properties?hash=${hash}") || die "Can't get torrent properties"
+
+    echo "$props" | python3 -c "
+import sys, json, time
+d = json.load(sys.stdin)
+
+def fmt_size(b):
+    for u in ['B','KB','MB','GB','TB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} PB'
+
+def fmt_speed(b):
+    for u in ['B/s','KB/s','MB/s','GB/s']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} TB/s'
+
+def fmt_time(ts):
+    if not ts or ts < 0: return '-'
+    return time.strftime('%Y-%m-%d %H:%M', time.localtime(ts))
+
+def fmt_eta(s):
+    if s < 0 or s == 8640000: return 'inf'
+    h, m = divmod(s // 60, 60)
+    if h > 0: return f'{h}h {m}m'
+    return f'{m}m {s % 60}s'
+
+print(f'  Size:         {fmt_size(d.get(\"total_size\", 0))}')
+print(f'  Downloaded:   {fmt_size(d.get(\"total_downloaded\", 0))}')
+print(f'  Uploaded:     {fmt_size(d.get(\"total_uploaded\", 0))}')
+print(f'  Ratio:        {d.get(\"share_ratio\", 0):.3f}')
+print(f'  Seeds:        {d.get(\"seeds\", 0)} (total: {d.get(\"seeds_total\", 0)})')
+print(f'  Peers:        {d.get(\"peers\", 0)} (total: {d.get(\"peers_total\", 0)})')
+print(f'  DL Speed:     {fmt_speed(d.get(\"dl_speed\", 0))}')
+print(f'  UP Speed:     {fmt_speed(d.get(\"up_speed\", 0))}')
+print(f'  ETA:          {fmt_eta(d.get(\"eta\", -1))}')
+print(f'  Added:        {fmt_time(d.get(\"addition_date\", 0))}')
+print(f'  Completed:    {fmt_time(d.get(\"completion_date\", 0))}')
+print(f'  Save Path:    {d.get(\"save_path\", \"?\")}')
+print(f'  Pieces:       {d.get(\"pieces_num\", 0)} x {fmt_size(d.get(\"piece_size\", 0))}')
+comment = d.get('comment', '')
+if comment:
+    print(f'  Comment:      {comment[:80]}')
+"
+}
+
+cmd_files() {
+    local input="${1:-}"
+    [[ -z "$input" ]] && die "Usage: qbt files <hash|name>"
+
+    local hash
+    hash=$(resolve_hash "$input")
+
+    header "TORRENT FILES"
+
+    local files
+    files=$(qbt_get "/api/v2/torrents/files?hash=${hash}") || die "Can't get torrent files"
+
+    echo "$files" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  (no files)')
+    sys.exit()
+
+def fmt_size(b):
+    for u in ['B','KB','MB','GB','TB']:
+        if b < 1024: return f'{b:.1f} {u}'
+        b /= 1024
+    return f'{b:.1f} PB'
+
+prio_map = {0: 'Skip', 1: 'Normal', 6: 'High', 7: 'Max'}
+
+print(f'  {len(data)} file(s)\n')
+print(f'  {\"#\":<5} {\"Name\":<55} {\"Size\":>9}  {\"Done\":>5}  {\"Priority\":<8}')
+print(f'  {\"─\"*5} {\"─\"*55} {\"─\"*9}  {\"─\"*5}  {\"─\"*8}')
+
+for i, f in enumerate(data):
+    name = f.get('name', '?')
+    # Show just the filename if path is long
+    short = name.split('/')[-1] if '/' in name else name
+    if len(short) > 55: short = short[:52] + '...'
+    size = fmt_size(f.get('size', 0))
+    progress = f'{f.get(\"progress\", 0)*100:.0f}%'
+    prio = prio_map.get(f.get('priority', 1), str(f.get('priority', '?')))
+    print(f'  {i:<5} {short:<55} {size:>9}  {progress:>5}  {prio:<8}')
+"
+}
+
 cmd_help() {
     show_version "qbt"
     cat <<'HELP'
@@ -298,6 +444,8 @@ main() {
         resume)             cmd_resume "$@" ;;
         delete|rm|del)      cmd_delete "$@" ;;
         speed)              cmd_speed ;;
+        info)               cmd_info "$@" ;;
+        files)              cmd_files "$@" ;;
         help|--help|-h)     cmd_help ;;
         *)
             err "Unknown command: $cmd"
