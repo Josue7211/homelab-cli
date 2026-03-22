@@ -294,6 +294,155 @@ print()
 "
 }
 
+cmd_stats() {
+    local resp
+    resp=$(koel_api GET "/api/data") || die "Failed to fetch library data"
+
+    echo "$resp" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin)
+
+# Adapt to response shape: top-level arrays or nested under keys
+songs = data.get('songs', []) if isinstance(data, dict) else []
+albums = data.get('albums', []) if isinstance(data, dict) else []
+artists = data.get('artists', []) if isinstance(data, dict) else []
+
+# If nested under currentUser or similar
+if not songs and isinstance(data, dict):
+    for key in data:
+        val = data[key]
+        if isinstance(val, dict):
+            songs = songs or val.get('songs', [])
+            albums = albums or val.get('albums', [])
+            artists = artists or val.get('artists', [])
+
+song_count = len(songs)
+album_count = len(albums)
+artist_count = len(artists)
+
+# Total duration from song lengths
+total_seconds = 0
+for s in songs:
+    length = s.get('length', 0) or 0
+    total_seconds += int(float(length))
+
+hours = total_seconds // 3600
+minutes = (total_seconds % 3600) // 60
+
+print()
+print('  \033[1mLIBRARY STATS\033[0m')
+print('  ' + chr(0x2500)*40)
+print(f'  Songs:     {song_count:,}')
+print(f'  Albums:    {album_count:,}')
+print(f'  Artists:   {artist_count:,}')
+print(f'  Duration:  {hours} hours {minutes} minutes')
+
+# File size if available
+total_size = 0
+has_size = False
+for s in songs:
+    sz = s.get('size', 0)
+    if sz:
+        has_size = True
+        total_size += int(sz)
+
+if has_size and total_size > 0:
+    b = total_size
+    for u in ['B','KB','MB','GB','TB']:
+        if b < 1024:
+            print(f'  Size:      {b:.1f} {u}')
+            break
+        b /= 1024
+print()
+"
+}
+
+cmd_albums() {
+    local artist="$*"
+    local resp
+    resp=$(koel_api GET "/api/album") || die "Failed to fetch albums"
+
+    ARTIST_FILTER="$artist" python3 -c "
+import sys, json, os
+
+data = json.loads(sys.stdin.read())
+albums = data if isinstance(data, list) else data.get('albums', data.get('data', []))
+artist_filter = os.environ.get('ARTIST_FILTER', '').strip().lower()
+
+results = []
+for a in albums:
+    name = a.get('name', a.get('title', '?'))
+    artist_name = a.get('artist_name', '')
+    if not artist_name and isinstance(a.get('artist'), dict):
+        artist_name = a['artist'].get('name', '?')
+    if not artist_name:
+        artist_name = '?'
+
+    if artist_filter and artist_filter not in artist_name.lower():
+        continue
+
+    year = '-'
+    if a.get('created_at'):
+        year = str(a['created_at'])[:4]
+
+    song_count = a.get('song_count', 0)
+    if not song_count and isinstance(a.get('songs'), list):
+        song_count = len(a['songs'])
+
+    results.append((artist_name, name, year, song_count))
+
+results.sort(key=lambda x: (x[0].lower(), x[1].lower()))
+
+print()
+print('  \033[1mALBUMS\033[0m')
+print('  ' + chr(0x2500)*55)
+print('  Title | Artist | Year | Songs')
+print('  ' + chr(0x2500)*55)
+for artist_name, name, year, song_count in results:
+    print(f'  {name} | {artist_name} | {year} | {song_count}')
+print()
+print(f'  {len(results)} albums')
+print()
+" <<< "$resp" | format_table
+}
+
+cmd_artists() {
+    local resp
+    resp=$(koel_api GET "/api/artist") || die "Failed to fetch artists"
+
+    echo "$resp" | python3 -c "
+import sys, json
+
+data = json.load(sys.stdin)
+artists = data if isinstance(data, list) else data.get('artists', data.get('data', []))
+
+results = []
+for a in artists:
+    name = a.get('name', '?')
+    album_count = a.get('album_count', 0)
+    if not album_count and isinstance(a.get('albums'), list):
+        album_count = len(a['albums'])
+    song_count = a.get('song_count', 0)
+    if not song_count and isinstance(a.get('songs'), list):
+        song_count = len(a['songs'])
+    results.append((name, album_count, song_count))
+
+results.sort(key=lambda x: x[0].lower())
+
+print()
+print('  \033[1mARTISTS\033[0m')
+print('  ' + chr(0x2500)*55)
+print('  Name | Albums | Songs')
+print('  ' + chr(0x2500)*55)
+for name, album_count, song_count in results:
+    print(f'  {name} | {album_count} | {song_count}')
+print()
+print(f'  {len(results)} artists')
+print()
+" | format_table
+}
+
 cmd_help() {
     show_version "koel"
     cat <<'HELP'
@@ -363,6 +512,9 @@ main() {
         search)         cmd_search "$@" ;;
         playlists)      cmd_playlists ;;
         recent)         cmd_recent ;;
+        stats)          cmd_stats ;;
+        albums)         cmd_albums "$@" ;;
+        artists)        cmd_artists ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
