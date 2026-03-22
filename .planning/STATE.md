@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-01-PLAN.md (Plex browsing commands)
-last_updated: "2026-03-22T08:56:47Z"
+stopped_at: Completed 05-02-PLAN.md (Plex server control & maintenance)
+last_updated: "2026-03-22T09:02:18.508Z"
 progress:
   total_phases: 16
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -58,6 +58,7 @@ Plan: 2 of 2
 | Phase 04 P02 | 1min | 2 tasks | 1 files |
 | Phase 04 P03 | 2min | 2 tasks | 1 files |
 | Phase 05 P01 | 2min | 2 tasks | 1 files |
+| Phase 05 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Recent decisions affecting current work:
 - [Phase 05]: plex_api method is 2nd param (not 1st like pve_api) to preserve backward compat for 8 existing callers
 - [Phase 05]: Shared users tries Tautulli get_users_table first for richer data, falls back to Plex /friends
 - [Phase 05]: Transcode command reuses Tautulli-first pattern with Plex /status/sessions fallback
+- [Phase 05]: cmd_kill uses /status/sessions/terminate with sessionId query param (Plex convention for stop)
+- [Phase 05]: Destructive Plex ops (kill, empty-trash) require confirm_action; non-destructive (optimize) does not
+- [Phase 05]: Help text reorganized into SERVER, LIBRARY, STREAMS, MANAGEMENT, TAUTULLI sections
 
 ### Pending Todos
 
@@ -101,8 +105,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T08:56:47Z
-Stopped at: Completed 05-01-PLAN.md (Plex browsing commands)
+Last session: 2026-03-22T09:02:18.505Z
+Stopped at: Completed 05-02-PLAN.md (Plex server control & maintenance)
 Resume with: /gsd:autonomous --from 2
 Notes:
 

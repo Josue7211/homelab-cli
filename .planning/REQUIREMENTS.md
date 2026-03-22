@@ -90,10 +90,10 @@
 - [x] **PLEX-01**: List playlists (`plex playlists`)
 - [x] **PLEX-02**: List collections for a library (`plex collections [library_id]`)
 - [x] **PLEX-03**: Manage sharing — list shared users (`plex shared`)
-- [ ] **PLEX-04**: Kill/stop a stream (`plex kill <session_id>`)
-- [ ] **PLEX-05**: Optimize/clean bundles (`plex optimize`)
-- [ ] **PLEX-06**: Empty trash for library (`plex empty-trash [library_id]`)
-- [ ] **PLEX-07**: Show server preferences/settings (`plex settings`)
+- [x] **PLEX-04**: Kill/stop a stream (`plex kill <session_id>`)
+- [x] **PLEX-05**: Optimize/clean bundles (`plex optimize`)
+- [x] **PLEX-06**: Empty trash for library (`plex empty-trash [library_id]`)
+- [x] **PLEX-07**: Show server preferences/settings (`plex settings`)
 - [x] **PLEX-08**: Show bandwidth/transcode info for active streams (`plex transcode`)
 
 ### Jellyfin — Expanded Management
@@ -285,10 +285,10 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PLEX-01 | Phase 5: Plex | Complete |
 | PLEX-02 | Phase 5: Plex | Complete |
 | PLEX-03 | Phase 5: Plex | Complete |
-| PLEX-04 | Phase 5: Plex | Pending |
-| PLEX-05 | Phase 5: Plex | Pending |
-| PLEX-06 | Phase 5: Plex | Pending |
-| PLEX-07 | Phase 5: Plex | Pending |
+| PLEX-04 | Phase 5: Plex | Complete |
+| PLEX-05 | Phase 5: Plex | Complete |
+| PLEX-06 | Phase 5: Plex | Complete |
+| PLEX-07 | Phase 5: Plex | Complete |
 | PLEX-08 | Phase 5: Plex | Complete |
 | JF-01 | Phase 6: Jellyfin | Pending |
 | JF-02 | Phase 6: Jellyfin | Pending |

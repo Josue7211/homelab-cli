@@ -102,7 +102,7 @@ Plans:
 
 Plans:
 - [x] 05-01-PLAN.md — plex_api method extension + browsing commands (playlists, collections, shared, transcode)
-- [ ] 05-02-PLAN.md — Stream control + server maintenance (kill, settings, optimize, empty-trash)
+- [x] 05-02-PLAN.md — Stream control + server maintenance (kill, settings, optimize, empty-trash)
 
 ### Phase 6: Jellyfin
 **Goal**: Users can manage users, scheduled tasks, plugins, and server info from the command line
