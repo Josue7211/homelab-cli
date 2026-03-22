@@ -115,7 +115,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — User management (users, user-add, user-rm) + task commands (tasks, run-task)
+- [x] 06-01-PLAN.md — User management (users, user-add, user-rm) + task commands (tasks, run-task)
 - [ ] 06-02-PLAN.md — Server info commands (plugins, activity, info) + help text update
 
 ### Phase 7: qBittorrent

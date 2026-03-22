@@ -98,11 +98,11 @@
 
 ### Jellyfin — Expanded Management
 
-- [ ] **JF-01**: List users (`jellyfin users`)
-- [ ] **JF-02**: Create user (`jellyfin user-add <name> <password>`)
-- [ ] **JF-03**: Delete user with confirmation (`jellyfin user-rm <name>`)
-- [ ] **JF-04**: List scheduled tasks (`jellyfin tasks`)
-- [ ] **JF-05**: Run scheduled task (`jellyfin run-task <id>`)
+- [x] **JF-01**: List users (`jellyfin users`)
+- [x] **JF-02**: Create user (`jellyfin user-add <name> <password>`)
+- [x] **JF-03**: Delete user with confirmation (`jellyfin user-rm <name>`)
+- [x] **JF-04**: List scheduled tasks (`jellyfin tasks`)
+- [x] **JF-05**: Run scheduled task (`jellyfin run-task <id>`)
 - [ ] **JF-06**: List plugins (`jellyfin plugins`)
 - [ ] **JF-07**: Show system activity log (`jellyfin activity [count]`)
 - [ ] **JF-08**: Show server info/config (`jellyfin info`)
@@ -290,11 +290,11 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | PLEX-06 | Phase 5: Plex | Complete |
 | PLEX-07 | Phase 5: Plex | Complete |
 | PLEX-08 | Phase 5: Plex | Complete |
-| JF-01 | Phase 6: Jellyfin | Pending |
-| JF-02 | Phase 6: Jellyfin | Pending |
-| JF-03 | Phase 6: Jellyfin | Pending |
-| JF-04 | Phase 6: Jellyfin | Pending |
-| JF-05 | Phase 6: Jellyfin | Pending |
+| JF-01 | Phase 6: Jellyfin | Complete |
+| JF-02 | Phase 6: Jellyfin | Complete |
+| JF-03 | Phase 6: Jellyfin | Complete |
+| JF-04 | Phase 6: Jellyfin | Complete |
+| JF-05 | Phase 6: Jellyfin | Complete |
 | JF-06 | Phase 6: Jellyfin | Pending |
 | JF-07 | Phase 6: Jellyfin | Pending |
 | JF-08 | Phase 6: Jellyfin | Pending |

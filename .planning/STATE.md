@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-02-PLAN.md (Plex server control & maintenance)
-last_updated: "2026-03-22T09:05:32.928Z"
+stopped_at: Completed 06-01-PLAN.md (Jellyfin user management & task commands)
+last_updated: "2026-03-22T09:16:46.727Z"
 progress:
   total_phases: 16
   completed_phases: 5
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 15
+  completed_plans: 14
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 05 — plex
+**Current focus:** Phase 06 — jellyfin
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (jellyfin) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Plan: Not started
 | Phase 04 P03 | 2min | 2 tasks | 1 files |
 | Phase 05 P01 | 2min | 2 tasks | 1 files |
 | Phase 05 P02 | 2min | 2 tasks | 1 files |
+| Phase 06 P01 | 1min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 05]: cmd_kill uses /status/sessions/terminate with sessionId query param (Plex convention for stop)
 - [Phase 05]: Destructive Plex ops (kill, empty-trash) require confirm_action; non-destructive (optimize) does not
 - [Phase 05]: Help text reorganized into SERVER, LIBRARY, STREAMS, MANAGEMENT, TAUTULLI sections
+- [Phase 06]: User deletion resolves name to ID case-insensitively via GET /Users, then DELETE /Users/{id} with confirm_action
+- [Phase 06]: Scheduled task triggers parsed by type: DailyTrigger, IntervalTrigger, WeeklyTrigger, StartupTrigger
 
 ### Pending Todos
 
@@ -105,8 +108,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T09:02:18.505Z
-Stopped at: Completed 05-02-PLAN.md (Plex server control & maintenance)
+Last session: 2026-03-22T09:16:46.722Z
+Stopped at: Completed 06-01-PLAN.md (Jellyfin user management & task commands)
 Resume with: /gsd:autonomous --from 2
 Notes:
 
