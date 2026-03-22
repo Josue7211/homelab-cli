@@ -112,10 +112,11 @@ Plans:
   1. User can list, create, and delete Jellyfin users
   2. User can list and run scheduled tasks, and list installed plugins
   3. User can view activity logs and server info/configuration
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: TBD
+- [ ] 06-01-PLAN.md — User management (users, user-add, user-rm) + task commands (tasks, run-task)
+- [ ] 06-02-PLAN.md — Server info commands (plugins, activity, info) + help text update
 
 ### Phase 7: qBittorrent
 **Goal**: Users can inspect torrents in detail and manage priorities, speed limits, categories, and trackers from the command line
@@ -254,7 +255,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 3. ARR Suite | 0/3 | Planning complete | - |
 | 4. Proxmox | 0/3 | Planning complete | - |
 | 5. Plex | 1/2 | Executing | - |
-| 6. Jellyfin | 0/? | Not started | - |
+| 6. Jellyfin | 0/2 | Planning complete | - |
 | 7. qBittorrent | 0/? | Not started | - |
 | 8. AdGuard | 0/? | Not started | - |
 | 9. OPNsense | 0/? | Not started | - |
