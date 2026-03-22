@@ -415,6 +415,59 @@ for t in tasks:
 "
 }
 
+cmd_backup() {
+    local vmid="$1"; shift
+    local vm_type storage="" compress="zstd"
+    vm_type=$(_resolve_vm_type "$vmid")
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --storage)  storage="$2"; shift 2 ;;
+            --compress) compress="$2"; shift 2 ;;
+            *) die "Unknown option: $1" ;;
+        esac
+    done
+    local -a data_args=(-d "vmid=$vmid" -d "compress=$compress" -d "mode=snapshot")
+    [[ -n "$storage" ]] && data_args+=(-d "storage=$storage")
+    info "Starting backup for VM $vmid (compress=$compress)..."
+    local result
+    result=$(pve_api POST "/nodes/${PVE_NODE}/vzdump" "${data_args[@]}")
+    local upid
+    upid=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',''))" 2>/dev/null || echo "")
+    if [[ -n "$upid" ]]; then
+        ok "Backup started. Task: $upid"
+        info "Track with: homelab tasks"
+    else
+        ok "Backup started."
+    fi
+}
+
+cmd_migrate() {
+    local vmid="$1" target_node="$2"
+    local vm_type
+    vm_type=$(_resolve_vm_type "$vmid")
+    # Check if VM is running to determine migration type
+    local status
+    status=$(pve_api GET "/nodes/${PVE_NODE}/$vm_type/$vmid/status/current" | python3 -c "import sys,json; print(json.load(sys.stdin)['data'].get('status','unknown'))" 2>/dev/null || echo "unknown")
+    local migration_type="offline"
+    local -a data_args=(-d "target=$target_node")
+    if [[ "$status" == "running" ]]; then
+        migration_type="online"
+        data_args+=(-d "online=1")
+    fi
+    confirm_action "Migrate VM $vmid to node '$target_node'? ($migration_type migration)"
+    info "Migrating VM $vmid to $target_node ($migration_type)..."
+    local result
+    result=$(pve_api POST "/nodes/${PVE_NODE}/$vm_type/$vmid/migrate" "${data_args[@]}")
+    local upid
+    upid=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',''))" 2>/dev/null || echo "")
+    if [[ -n "$upid" ]]; then
+        ok "Migration started. Task: $upid"
+        info "Track with: homelab tasks"
+    else
+        ok "Migration started."
+    fi
+}
+
 # ── Portainer shortcuts ──────────────────────────────────────────
 
 cmd_stacks() {
@@ -511,6 +564,8 @@ SNAPSHOTS:
 CLUSTER:
   nodes                             List cluster nodes
   tasks [count]                     Recent tasks (default: 20)
+  backup <vmid> [--storage S] [--compress ALGO]  Backup VM (default: zstd)
+  migrate <vmid> <node>             Migrate VM to another node
 
 PORTAINER (Docker):
   stacks [instance]               List stacks (services|plex, or both)
@@ -532,6 +587,9 @@ EXAMPLES:
   homelab snapshot-restore 100 pre-upgrade
   homelab nodes
   homelab tasks 50
+  homelab backup 100
+  homelab backup 100 --storage nfs-backup --compress lzo
+  homelab migrate 100 pve2
   homelab stacks plex
   homelab logs plex koel 50
   homelab redeploy plex music
@@ -562,6 +620,8 @@ main() {
         snapshot-delete|snap-delete)    cmd_snapshot_delete "$1" "$2" ;;
         nodes)                          cmd_nodes ;;
         tasks)                          cmd_tasks "${1:-}" ;;
+        backup)                         cmd_backup "$@" ;;
+        migrate)                        cmd_migrate "$1" "$2" ;;
         stacks)             cmd_stacks "${1:-}" ;;
         containers|ps)      cmd_containers "${1:-}" ;;
         logs)               cmd_logs "$@" ;;
