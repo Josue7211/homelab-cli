@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 07-02-PLAN.md (qBittorrent management & speed limits)
-last_updated: "2026-03-22T09:31:27Z"
+status: unknown
+stopped_at: Completed 08-01-PLAN.md (AdGuard DHCP & DNS rewrites)
+last_updated: "2026-03-22T10:18:23.394Z"
 progress:
   total_phases: 16
   completed_phases: 7
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 19
+  completed_plans: 18
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (adguard) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Plan: Not started
 | Phase 06 P02 | 1min | 2 tasks | 1 files |
 | Phase 07 P01 | 3min | 2 tasks | 1 files |
 | Phase 07 P02 | 2min | 2 tasks | 1 files |
+| Phase 08 P01 | 4min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Tracker display skips internal DHT/PeX/LSD entries; peers sorted by progress descending
 - [Phase 07]: Speed limit commands are dual-mode: show current when no arg, set when arg provided
 - [Phase 07]: Help text organized into STATUS, TORRENTS, INSPECTION, MANAGEMENT, LIMITS, EXAMPLES sections
+- [Phase 08]: DHCP display splits static vs dynamic leases with server status header
+- [Phase 08]: rewrite-rm looks up answer by domain first, then confirms before deletion
 
 ### Pending Todos
 
@@ -116,8 +119,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T09:31:27Z
-Stopped at: Completed 07-02-PLAN.md (qBittorrent management & speed limits)
+Last session: 2026-03-22T10:18:23.243Z
+Stopped at: Completed 08-01-PLAN.md (AdGuard DHCP & DNS rewrites)
 Resume with: /gsd:autonomous --from 8
 Notes:
 

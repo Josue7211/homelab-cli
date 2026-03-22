@@ -143,7 +143,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — DHCP commands (dhcp, dhcp-add) + DNS rewrite commands (rewrites, rewrite-add, rewrite-rm)
+- [x] 08-01-PLAN.md — DHCP commands (dhcp, dhcp-add) + DNS rewrite commands (rewrites, rewrite-add, rewrite-rm)
 - [ ] 08-02-PLAN.md — Rule removal (unblock, unallow) + client commands (clients, client) + help text update
 
 ### Phase 9: OPNsense
