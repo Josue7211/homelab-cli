@@ -16,7 +16,7 @@ Expand all 14 homelab CLIs from ~45% to full API coverage, add shared library he
 - [ ] **Phase 4: Proxmox** - VM management, snapshots, and cluster operations
 - [ ] **Phase 5: Plex** - Playlists, collections, sharing, stream control, and server management
 - [x] **Phase 6: Jellyfin** - User management, tasks, plugins, and server info (completed 2026-03-22)
-- [ ] **Phase 7: qBittorrent** - Torrent details, speed limits, categories, and tracker info
+- [x] **Phase 7: qBittorrent** - Torrent details, speed limits, categories, and tracker info (completed 2026-03-22)
 - [ ] **Phase 8: AdGuard** - DHCP leases, DNS rewrites, client management, and rule removal
 - [ ] **Phase 9: OPNsense** - Firewall rule CRUD, aliases, DHCP mappings, VPN, and traffic stats
 - [ ] **Phase 10: SABnzbd** - Queue item management, priorities, speed limits, and server stats
@@ -126,10 +126,11 @@ Plans:
   1. User can view torrent details, file lists, trackers, and peers for any torrent
   2. User can set torrent priority, category, and move torrent files to a new location
   3. User can set global download and upload speed limits
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: TBD
+- [x] 07-01-PLAN.md -- Torrent inspection commands (info, files, trackers, peers) + resolve_hash helper
+- [x] 07-02-PLAN.md -- Torrent management (priority, categories, set-category, move) + speed limits (limit-dl, limit-ul) + help text
 
 ### Phase 8: AdGuard
 **Goal**: Users can manage DHCP leases, DNS rewrites, clients, and filtering rules from the command line
@@ -256,7 +257,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> ... -> 16
 | 4. Proxmox | 0/3 | Planning complete | - |
 | 5. Plex | 1/2 | Executing | - |
 | 6. Jellyfin | 2/2 | Complete   | 2026-03-22 |
-| 7. qBittorrent | 0/? | Not started | - |
+| 7. qBittorrent | 2/2 | Complete | 2026-03-22 |
 | 8. AdGuard | 0/? | Not started | - |
 | 9. OPNsense | 0/? | Not started | - |
 | 10. SABnzbd | 0/? | Not started | - |

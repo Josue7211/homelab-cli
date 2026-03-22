@@ -109,16 +109,16 @@
 
 ### qBittorrent — Expanded Management
 
-- [ ] **QBT-01**: Show torrent detail (`qbt info <hash>`)
-- [ ] **QBT-02**: List files in torrent (`qbt files <hash>`)
-- [ ] **QBT-03**: Set torrent priority (`qbt priority <hash> <max|min|up|down>`)
-- [ ] **QBT-04**: Set download speed limit (`qbt limit-dl <speed_KB>`)
-- [ ] **QBT-05**: Set upload speed limit (`qbt limit-ul <speed_KB>`)
-- [ ] **QBT-06**: List categories (`qbt categories`)
-- [ ] **QBT-07**: Set torrent category (`qbt set-category <hash> <category>`)
-- [ ] **QBT-08**: Move torrent files to new location (`qbt move <hash> <path>`)
-- [ ] **QBT-09**: Show torrent trackers (`qbt trackers <hash>`)
-- [ ] **QBT-10**: Show torrent peers (`qbt peers <hash>`)
+- [x] **QBT-01**: Show torrent detail (`qbt info <hash>`)
+- [x] **QBT-02**: List files in torrent (`qbt files <hash>`)
+- [x] **QBT-03**: Set torrent priority (`qbt priority <hash> <max|min|up|down>`)
+- [x] **QBT-04**: Set download speed limit (`qbt limit-dl <speed_KB>`)
+- [x] **QBT-05**: Set upload speed limit (`qbt limit-ul <speed_KB>`)
+- [x] **QBT-06**: List categories (`qbt categories`)
+- [x] **QBT-07**: Set torrent category (`qbt set-category <hash> <category>`)
+- [x] **QBT-08**: Move torrent files to new location (`qbt move <hash> <path>`)
+- [x] **QBT-09**: Show torrent trackers (`qbt trackers <hash>`)
+- [x] **QBT-10**: Show torrent peers (`qbt peers <hash>`)
 
 ### AdGuard — Expanded Management
 
@@ -298,16 +298,16 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | JF-06 | Phase 6: Jellyfin | Complete |
 | JF-07 | Phase 6: Jellyfin | Complete |
 | JF-08 | Phase 6: Jellyfin | Complete |
-| QBT-01 | Phase 7: qBittorrent | Pending |
-| QBT-02 | Phase 7: qBittorrent | Pending |
-| QBT-03 | Phase 7: qBittorrent | Pending |
-| QBT-04 | Phase 7: qBittorrent | Pending |
-| QBT-05 | Phase 7: qBittorrent | Pending |
-| QBT-06 | Phase 7: qBittorrent | Pending |
-| QBT-07 | Phase 7: qBittorrent | Pending |
-| QBT-08 | Phase 7: qBittorrent | Pending |
-| QBT-09 | Phase 7: qBittorrent | Pending |
-| QBT-10 | Phase 7: qBittorrent | Pending |
+| QBT-01 | Phase 7: qBittorrent | Complete |
+| QBT-02 | Phase 7: qBittorrent | Complete |
+| QBT-03 | Phase 7: qBittorrent | Complete |
+| QBT-04 | Phase 7: qBittorrent | Complete |
+| QBT-05 | Phase 7: qBittorrent | Complete |
+| QBT-06 | Phase 7: qBittorrent | Complete |
+| QBT-07 | Phase 7: qBittorrent | Complete |
+| QBT-08 | Phase 7: qBittorrent | Complete |
+| QBT-09 | Phase 7: qBittorrent | Complete |
+| QBT-10 | Phase 7: qBittorrent | Complete |
 | AG-01 | Phase 8: AdGuard | Pending |
 | AG-02 | Phase 8: AdGuard | Pending |
 | AG-03 | Phase 8: AdGuard | Pending |

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: unknown
-stopped_at: Completed 06-02-PLAN.md (Jellyfin server info commands & help text)
-last_updated: "2026-03-22T09:21:16.821Z"
+status: executing
+stopped_at: Completed 07-02-PLAN.md (qBittorrent management & speed limits)
+last_updated: "2026-03-22T09:31:27Z"
 progress:
   total_phases: 16
-  completed_phases: 6
-  total_plans: 15
-  completed_plans: 15
+  completed_phases: 7
+  total_plans: 17
+  completed_plans: 17
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Every homelab operation available in a web UI can be performed from the command line
-**Current focus:** Phase 06 — jellyfin
+**Current focus:** Phase 08 — adguard
 
 ## Current Position
 
-Phase: 7
+Phase: 8
 Plan: Not started
 
 ## Performance Metrics
@@ -61,6 +61,8 @@ Plan: Not started
 | Phase 05 P02 | 2min | 2 tasks | 1 files |
 | Phase 06 P01 | 1min | 2 tasks | 1 files |
 | Phase 06 P02 | 1min | 2 tasks | 1 files |
+| Phase 07 P01 | 3min | 2 tasks | 1 files |
+| Phase 07 P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -99,6 +101,10 @@ Recent decisions affecting current work:
 - [Phase 06]: User deletion resolves name to ID case-insensitively via GET /Users, then DELETE /Users/{id} with confirm_action
 - [Phase 06]: Scheduled task triggers parsed by type: DailyTrigger, IntervalTrigger, WeeklyTrigger, StartupTrigger
 - [Phase 06]: cmd_info shows extended server config complementing cmd_status; activity log uses severity coloring; help text organized into 6 sections following Plex pattern
+- [Phase 07]: resolve_hash checks 40-char hex first, then exact name, then partial substring match
+- [Phase 07]: Tracker display skips internal DHT/PeX/LSD entries; peers sorted by progress descending
+- [Phase 07]: Speed limit commands are dual-mode: show current when no arg, set when arg provided
+- [Phase 07]: Help text organized into STATUS, TORRENTS, INSPECTION, MANAGEMENT, LIMITS, EXAMPLES sections
 
 ### Pending Todos
 
@@ -110,9 +116,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T09:20:28.208Z
-Stopped at: Completed 06-02-PLAN.md (Jellyfin server info commands & help text)
-Resume with: /gsd:autonomous --from 2
+Last session: 2026-03-22T09:31:27Z
+Stopped at: Completed 07-02-PLAN.md (qBittorrent management & speed limits)
+Resume with: /gsd:autonomous --from 8
 Notes:
 
 - BW_SESSION may be expired — user will need to unlock again
