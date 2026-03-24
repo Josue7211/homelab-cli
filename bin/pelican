@@ -775,7 +775,7 @@ ACTIVITY:
 
 EXAMPLES:
   pelican status
-  pelican node-create --name MediaVM --fqdn 10.0.0.153 --memory 8192 --disk 102400
+  pelican node-create --name MyVM --fqdn 192.168.1.100 --memory 8192 --disk 102400
   pelican alloc-create --node 1 --ip 0.0.0.0 --ports 25565
   pelican server-create --name Minecraft --user 1 --egg 1 --memory 4096 --disk 20480 --cpu 200
   pelican servers

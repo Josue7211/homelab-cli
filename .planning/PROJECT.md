@@ -54,7 +54,7 @@ See REQUIREMENTS.md for detailed REQ-IDs.
 - **Secrets:** All API keys/tokens stored in Vaultwarden, retrieved via `bw` CLI at runtime
 - **Portainer:** Two instances — Services (HTTPS/9443) and Plex (HTTP/9000) — with API key auth
 - **ARR Suite:** API keys auto-retrieved from config.xml via SSH to Plex VM
-- **Current coverage:** ~95% API coverage across all 14 CLIs — full CRUD operations, management commands, and help text for every service
+- **Current coverage:** ~45% average across all CLIs — read operations well covered, write/create/delete operations mostly missing
 - **User preference:** Never manage containers via CLI directly — always use Portainer API (even for container operations)
 
 ## Constraints
@@ -65,13 +65,14 @@ See REQUIREMENTS.md for detailed REQ-IDs.
 - **Portainer-mediated:** Container/stack operations go through Portainer API, not Docker API directly
 - **Non-destructive defaults:** Dangerous operations (delete, prune) require explicit confirmation or flags
 
-## Current State: v2.0 Shipped
+## Current Milestone: v2.0 Full Coverage
 
-**Shipped:** 2026-03-22
-**Phases:** 16 | **Plans:** 34 | **Commands added:** ~130 new commands across 14 CLIs
-**Code:** 10,526 lines of bash across 14 CLI binaries + shared library
+**Goal:** Expand all 14 CLIs to full API coverage and register with OpenCLI
 
-All 14 CLIs now have comprehensive API coverage including CRUD operations, management commands, and organized help text. 125/128 requirements satisfied. 3 OpenCLI registration requirements deferred (external tooling dependency).
+**Target features:**
+- Full CRUD operations for every service
+- OpenCLI registration for AI agent discovery
+- ~135 new commands across 14 CLIs
 
 ## Key Decisions
 
@@ -80,10 +81,7 @@ All 14 CLIs now have comprehensive API coverage including CRUD operations, manag
 | Bash over TypeScript/Python | Consistency with existing codebase, zero dependencies beyond curl/python3 | ✓ Good |
 | Extend existing CLIs vs OpenCLI adapters | Services are REST APIs — bash curl wrappers are simpler than browser automation | ✓ Good |
 | Portainer API over Docker API | User preference, consistent with existing workflow | ✓ Good |
-| Register with OpenCLI for discovery | AI agents can find tools via `opencli list` | ⚠️ Deferred (external tooling) |
-| Inline python3 for JSON parsing | Avoids jq dependency, consistent pattern across all CLIs | ✓ Good |
-| confirm_action on destructive ops | Safety net for delete/remove/cancel commands | ✓ Good |
-| resolve_*_id helpers | Name-to-ID lookup enables friendly command interfaces | ✓ Good |
+| Register with OpenCLI for discovery | AI agents can find tools via `opencli list` | — Pending |
 
 ## Evolution
 
@@ -103,4 +101,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after v2.0 milestone completion*
+*Last updated: 2026-03-21 after milestone v2.0 initialization*

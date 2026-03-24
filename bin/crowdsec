@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
 
 # ── Defaults (overridden by config) ─────────────────────────────
-CROWDSEC_URL="${CROWDSEC_URL:-http://10.0.0.153:6060}"
+CROWDSEC_URL="${CROWDSEC_URL:-http://localhost:6060}"
 CROWDSEC_LOGIN="${CROWDSEC_LOGIN:-localhost}"
 CROWDSEC_PASSWORD_SOURCE="${CROWDSEC_PASSWORD_SOURCE:-bw}"
 CROWDSEC_PASSWORD_BW_ENTRY="${CROWDSEC_PASSWORD_BW_ENTRY:-CrowdSec LAPI}"

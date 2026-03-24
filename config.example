@@ -98,11 +98,3 @@ OPNSENSE_SECRET=""
 # ── AdGuard Home ─────────────────────────────────────────────────
 ADGUARD_URL="http://192.168.1.10"
 ADGUARD_BW_ENTRY="AdGuard Home"
-
-# ── CrowdSec LAPI ──────────────────────────────────────────────
-CROWDSEC_URL="http://${PLEX_VM_IP}:6060"
-CROWDSEC_LOGIN="localhost"
-CROWDSEC_PASSWORD_SOURCE="bw"
-CROWDSEC_PASSWORD_BW_ENTRY="CrowdSec LAPI"
-CROWDSEC_SSH_HOST=""  # SSH alias for cscli commands (scenarios, collections, metrics)
-CROWDSEC_CONTAINER="crowdsec"  # Container name for docker exec

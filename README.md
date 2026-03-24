@@ -1,6 +1,6 @@
 # homelab-cli
 
-13 bash CLIs for managing a self-hosted homelab from any machine on your network. Config-driven, no hardcoded secrets.
+16 bash CLIs for managing a self-hosted homelab from any machine on your network. Config-driven, no hardcoded secrets.
 
 ## CLIs
 
@@ -19,6 +19,9 @@
 | `sab` | SABnzbd | Usenet queue, history, pause/resume |
 | `gluetun` | Gluetun | VPN status, public IP, start/stop |
 | `vault` | Vaultwarden | Secret lookup, search, sync |
+| `crowdsec` | CrowdSec | Decisions, alerts, ban/unban IPs, bouncers, scenarios, metrics |
+| `opnsense` | OPNsense | Firewall rules, interfaces, DHCP, DNS, VPN, traffic, firmware |
+| `pelican` | Pelican Panel | Game servers, nodes, power control, backups, files, allocations |
 
 ## Quick Start
 
