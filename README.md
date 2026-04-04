@@ -156,9 +156,9 @@ homelab-cli/
 │   └── common.sh   # Shared config, colors, secret retrieval, API helpers
 ├── config.example  # Template config (safe to share)
 ├── install.sh      # Symlinks bin/* into ~/.local/bin/
-└── LICENSE         # Apache 2.0
+└── LICENSE         # AGPLv3
 ```
 
 ## License
 
-Apache 2.0
+AGPLv3
