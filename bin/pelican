@@ -31,7 +31,7 @@ pel_api() {
     shift 2
     local token
     token=$(get_token)
-    curl -sf -X "$method" "${PELICAN_URL}/api${path}" \
+    http_request "$method" "${PELICAN_URL}/api${path}" \
         -H "Authorization: Bearer $token" \
         -H "Accept: application/vnd.pterodactyl.v1+json" \
         -H "Content-Type: application/json" \

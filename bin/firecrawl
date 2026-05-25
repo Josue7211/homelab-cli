@@ -12,11 +12,22 @@ FIRECRAWL_URL="${FIRECRAWL_URL:-http://localhost:3002}"
 
 fc_post() {
     local path="$1"; shift
-    curl -s -X POST "${FIRECRAWL_URL}${path}" \
-        -H "Content-Type: application/json" "$@"
+    local data=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -d|--data|--data-raw)
+                data="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    api_post "${FIRECRAWL_URL}${path}" "" "$data"
 }
 
-fc_get() { curl -s "${FIRECRAWL_URL}${1}"; }
+fc_get() { api_get "${FIRECRAWL_URL}${1}"; }
 
 # ── Commands ─────────────────────────────────────────────────
 

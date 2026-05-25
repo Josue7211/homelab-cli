@@ -34,7 +34,7 @@ sab_api() {
         extra="${extra}&${arg}"
     done
 
-    curl -sf "${SAB_URL}/api?apikey=${key}&mode=${mode}&output=json${extra}" 2>/dev/null
+    api_get "${SAB_URL}/api?apikey=${key}&mode=${mode}&output=json${extra}"
 }
 
 # ── Commands ───────────────────────────────────────────────────

@@ -30,9 +30,15 @@ qbt_login() {
     }
 
     local result
-    result=$(curl -sf -c "$_cookie_file" \
+    result=$(curl --silent --show-error --fail-with-body \
+        --connect-timeout "$HTTP_CONNECT_TIMEOUT" \
+        --max-time "$HTTP_MAX_TIME" \
+        --retry "$HTTP_RETRY" \
+        --retry-delay "$HTTP_RETRY_DELAY" \
+        --retry-connrefused \
+        -c "$_cookie_file" \
         -X POST "${QBIT_URL}/api/v2/auth/login" \
-        -d "username=${QBIT_USER}&password=${password}" 2>/dev/null) || {
+        -d "username=${QBIT_USER}&password=${password}") || {
         die "Can't connect to qBittorrent at ${QBIT_URL}"
     }
 
@@ -44,16 +50,34 @@ qbt_login() {
 qbt_get() {
     local path="$1"
     qbt_login
-    curl -sf -b "$_cookie_file" "${QBIT_URL}${path}" 2>/dev/null
+    curl --silent --show-error --fail-with-body \
+        --connect-timeout "$HTTP_CONNECT_TIMEOUT" \
+        --max-time "$HTTP_MAX_TIME" \
+        --retry "$HTTP_RETRY" \
+        --retry-delay "$HTTP_RETRY_DELAY" \
+        --retry-connrefused \
+        -b "$_cookie_file" "${QBIT_URL}${path}"
 }
 
 qbt_post() {
     local path="$1" data="${2:-}"
     qbt_login
     if [[ -n "$data" ]]; then
-        curl -sf -b "$_cookie_file" -X POST "${QBIT_URL}${path}" -d "$data" 2>/dev/null
+        curl --silent --show-error --fail-with-body \
+            --connect-timeout "$HTTP_CONNECT_TIMEOUT" \
+            --max-time "$HTTP_MAX_TIME" \
+            --retry "$HTTP_RETRY" \
+            --retry-delay "$HTTP_RETRY_DELAY" \
+            --retry-connrefused \
+            -b "$_cookie_file" -X POST "${QBIT_URL}${path}" -d "$data"
     else
-        curl -sf -b "$_cookie_file" -X POST "${QBIT_URL}${path}" 2>/dev/null
+        curl --silent --show-error --fail-with-body \
+            --connect-timeout "$HTTP_CONNECT_TIMEOUT" \
+            --max-time "$HTTP_MAX_TIME" \
+            --retry "$HTTP_RETRY" \
+            --retry-delay "$HTTP_RETRY_DELAY" \
+            --retry-connrefused \
+            -b "$_cookie_file" -X POST "${QBIT_URL}${path}"
     fi
 }
 

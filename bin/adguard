@@ -15,10 +15,13 @@ _ag_creds=""
 get_creds() {
     if [[ -n "$_ag_creds" ]]; then echo "$_ag_creds"; return; fi
     local user pass
-    user=$(bw get username "$AG_VAULT_ENTRY" 2>/dev/null) || {
+    user=$(bw_cmd get username "$AG_VAULT_ENTRY" 2>/dev/null) || {
         die "Can't get AdGuard creds. Is vault unlocked? (bw unlock)"
     }
-    pass=$(bw get password "$AG_VAULT_ENTRY" 2>/dev/null)
+    pass=$(bw_cmd get password "$AG_VAULT_ENTRY" 2>/dev/null) || {
+        die "Can't get AdGuard creds. Is vault unlocked? (bw unlock)"
+    }
+    [[ -z "$user" || -z "$pass" ]] && die "AdGuard credentials are empty in vault entry '$AG_VAULT_ENTRY'"
     _ag_creds="${user}:${pass}"
     echo "$_ag_creds"
 }
@@ -28,8 +31,8 @@ ag_api() {
     shift 2
     local creds
     creds=$(get_creds)
-    curl -s -u "$creds" -X "$method" "${AG_HOST}/control${path}" \
-        -H "Content-Type: application/json" "$@"
+    http_request "$method" "${AG_HOST}/control${path}" \
+        -u "$creds" -H "Content-Type: application/json" "$@"
 }
 
 # ── Commands ─────────────────────────────────────────────────

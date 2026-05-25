@@ -15,8 +15,8 @@ if [[ -z "$OPN_KEY" || -z "$OPN_SECRET" ]]; then
     OPN_KEY_SOURCE="${OPNSENSE_KEY_SOURCE:-env}"
     OPN_KEY_BW_ENTRY="${OPNSENSE_BW_ENTRY:-OPNsense API}"
     if [[ "$OPN_KEY_SOURCE" == "bw" ]]; then
-        OPN_KEY=$(bw get username "$OPN_KEY_BW_ENTRY" 2>/dev/null) || die "Can't get OPNsense key from vault"
-        OPN_SECRET=$(bw get password "$OPN_KEY_BW_ENTRY" 2>/dev/null) || die "Can't get OPNsense secret from vault"
+        OPN_KEY=$(bw_cmd get username "$OPN_KEY_BW_ENTRY" 2>/dev/null) || die "Can't get OPNsense key from vault"
+        OPN_SECRET=$(bw_cmd get password "$OPN_KEY_BW_ENTRY" 2>/dev/null) || die "Can't get OPNsense secret from vault"
     fi
 fi
 
@@ -25,13 +25,13 @@ fi
 # ── API helpers ──────────────────────────────────────────────────
 opn_get() {
     local path="$1"
-    curl -sk -u "${OPN_KEY}:${OPN_SECRET}" "${OPN_HOST}/api${path}" 2>/dev/null
+    http_request GET "${OPN_HOST}/api${path}" -k -u "${OPN_KEY}:${OPN_SECRET}"
 }
 
 opn_post() {
     local path="$1" data="${2:-{\}}"
-    curl -sk -u "${OPN_KEY}:${OPN_SECRET}" -X POST "${OPN_HOST}/api${path}" \
-        -H "Content-Type: application/json" -d "$data" 2>/dev/null
+    http_request POST "${OPN_HOST}/api${path}" -k -u "${OPN_KEY}:${OPN_SECRET}" \
+        -H "Content-Type: application/json" -d "$data"
 }
 
 # ── Commands ─────────────────────────────────────────────────────

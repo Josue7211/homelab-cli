@@ -4,6 +4,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 source "$SCRIPT_DIR/../lib/common.sh"
+source "$SCRIPT_DIR/../lib/ops.sh"
 
 # ── Defaults (overridden by config) ─────────────────────────────
 PVE_HOST="${PROXMOX_HOST:-https://localhost:8006}"
@@ -29,7 +30,7 @@ pve_api() {
     local path="$1"
     local token
     token=$(get_pve_token)
-    curl -sk "${PVE_HOST}/api2/json${path}" \
+    http_request GET "${PVE_HOST}/api2/json${path}" -k \
         -H "Authorization: PVEAPIToken=${PVE_TOKEN}=${token}"
 }
 
@@ -70,7 +71,7 @@ for v in sorted(vms, key=lambda x: x.get('vmid', 0)):
     # Portainer instances
     echo "  PORTAINER"
     local pt_services="${PORTAINER_SERVICES:-https://localhost:9443}"
-    local pt_plex="${PORTAINER_PLEX:-http://localhost:9000}"
+    local pt_plex="${PORTAINER_PLEX-}"
 
     for inst in services plex; do
         local url label
@@ -78,11 +79,12 @@ for v in sorted(vms, key=lambda x: x.get('vmid', 0)):
             url="$pt_services"
             label="Services ($url)"
         else
+            [[ -z "$pt_plex" || "$pt_plex" == "disabled" ]] && continue
             url="$pt_plex"
             label="Plex ($url)"
         fi
         local ver
-        ver=$(curl -sk "${url}/api/status" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version','?'))" 2>/dev/null || echo "unreachable")
+        ver=$(http_request GET "${url}/api/status" -k | python3 -c "import sys,json; print(json.load(sys.stdin).get('Version','?'))" 2>/dev/null || echo "unreachable")
         if [[ "$ver" == "unreachable" ]]; then
             echo "    [-] $label — unreachable"
         else
@@ -307,6 +309,12 @@ USAGE:
 
 DASHBOARD:
   status                          Full homelab dashboard (VMs, services, health)
+  doctor                          Agent/Tailscale/Bitwarden/memd/Codex health checks
+  repair                          Reapply known-good agent/Tailscale/Hermes state
+  backup                          Save known-good ops config snapshots
+  fleet                           Show tailnet fleet inventory
+  fleet-doctor                    Check agent baseline across Linux server fleet
+  fleet-sync                      Sync bw/codex/memd baseline to reachable servers
 
 PROXMOX (VMs):
   vms                             List all VMs and containers
@@ -326,6 +334,12 @@ PORTAINER (Docker):
 
 EXAMPLES:
   homelab status
+  homelab doctor
+  homelab repair
+  homelab backup
+  homelab fleet
+  homelab fleet-doctor
+  homelab fleet-sync
   homelab vms
   homelab vm 100
   homelab start 300
@@ -343,6 +357,12 @@ main() {
 
     case "$cmd" in
         status|dashboard)   cmd_status ;;
+        doctor|health|ops-dashboard) cmd_doctor ;;
+        repair|auto-repair) cmd_repair_ops ;;
+        backup|ops-backup)  cmd_backup_ops ;;
+        fleet)              cmd_fleet_ops ;;
+        fleet-doctor)       cmd_fleet_doctor_ops ;;
+        fleet-sync)         cmd_fleet_sync_ops ;;
         vms|ls)             cmd_vms ;;
         vm|info)            cmd_vm "$1" ;;
         start)              cmd_start "$1" ;;

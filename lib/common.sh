@@ -47,6 +47,17 @@ confirm_action() {
 }
 
 # ── Secret retrieval ─────────────────────────────────────────────
+# Bitwarden helper that automatically attaches BW_SESSION when present.
+bw_cmd() {
+    require_cmd bw
+    if [[ -n "${BW_SESSION:-}" ]]; then
+        bw "$@" --session "$BW_SESSION"
+    else
+        bw "$@"
+    fi
+}
+
+# ── Secret retrieval ─────────────────────────────────────────────
 # Usage: get_secret <source> [bw_entry] [env_var] [file_path]
 #   source: bw | env | file | config | value
 #   For "config": reads API key from *arr config.xml via SSH
@@ -56,8 +67,10 @@ get_secret() {
     case "$source" in
         bw)
             [[ -z "$bw_entry" ]] && die "bw entry name required"
-            bw get password "$bw_entry" 2>/dev/null \
-                || die "Can't get '$bw_entry' from vault. Is it unlocked? (bw unlock)"
+            local secret=""
+            secret="$(bw_cmd get password "$bw_entry" 2>/dev/null || true)"
+            [[ -z "$secret" ]] && die "Can't get '$bw_entry' from vault. Unlock first (bw unlock) or export BW_SESSION."
+            echo "$secret"
             ;;
         env)
             local var="${env_var:-API_KEY}"
@@ -100,12 +113,30 @@ get_secret() {
 }
 
 # ── API helpers ──────────────────────────────────────────────────
-# Generic JSON API call
+# Consistent transport settings for all CLIs.
+HTTP_CONNECT_TIMEOUT="${HOMELAB_HTTP_CONNECT_TIMEOUT:-5}"
+HTTP_MAX_TIME="${HOMELAB_HTTP_MAX_TIME:-30}"
+HTTP_RETRY="${HOMELAB_HTTP_RETRY:-1}"
+HTTP_RETRY_DELAY="${HOMELAB_HTTP_RETRY_DELAY:-1}"
+
+http_request() {
+    local method="$1" url="$2"
+    shift 2
+    curl --silent --show-error --fail-with-body \
+        --connect-timeout "$HTTP_CONNECT_TIMEOUT" \
+        --max-time "$HTTP_MAX_TIME" \
+        --retry "$HTTP_RETRY" \
+        --retry-delay "$HTTP_RETRY_DELAY" \
+        --retry-connrefused \
+        -X "$method" "$url" "$@"
+}
+
+# Generic JSON API call with X-Api-Key conventions.
 api_get() {
     local url="$1" api_key="${2:-}"
     local -a headers=()
     [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
-    curl -sf "$url" "${headers[@]}" 2>/dev/null
+    http_request GET "$url" "${headers[@]}"
 }
 
 api_post() {
@@ -113,9 +144,9 @@ api_post() {
     local -a headers=(-H "Content-Type: application/json")
     [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
     if [[ -n "$data" ]]; then
-        curl -sf -X POST "$url" "${headers[@]}" -d "$data" 2>/dev/null
+        http_request POST "$url" "${headers[@]}" -d "$data"
     else
-        curl -sf -X POST "$url" "${headers[@]}" 2>/dev/null
+        http_request POST "$url" "${headers[@]}"
     fi
 }
 
@@ -123,21 +154,21 @@ api_delete() {
     local url="$1" api_key="${2:-}"
     local -a headers=()
     [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
-    curl -sf -X DELETE "$url" "${headers[@]}" 2>/dev/null
+    http_request DELETE "$url" "${headers[@]}"
 }
 
 api_put() {
     local url="$1" api_key="${2:-}" data="${3:-}"
     local -a headers=(-H "Content-Type: application/json")
     [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
-    curl -sf -X PUT "$url" "${headers[@]}" -d "$data" 2>/dev/null
+    http_request PUT "$url" "${headers[@]}" -d "$data"
 }
 
 api_patch() {
     local url="$1" api_key="${2:-}" data="${3:-}"
     local -a headers=(-H "Content-Type: application/json")
     [[ -n "$api_key" ]] && headers+=(-H "X-Api-Key: $api_key")
-    curl -sf -X PATCH "$url" "${headers[@]}" -d "$data" 2>/dev/null
+    http_request PATCH "$url" "${headers[@]}" -d "$data"
 }
 
 # ── Formatting helpers ───────────────────────────────────────────

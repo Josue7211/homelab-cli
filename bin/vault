@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/../lib/common.sh"
 check_unlocked() {
     require_cmd bw
     local status
-    status=$(bw status 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "error")
+    status=$(bw_cmd status 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "error")
     if [[ "$status" == "locked" ]]; then
         die "Vault is locked. Run: bw unlock"
     elif [[ "$status" == "unauthenticated" ]]; then
@@ -25,7 +25,7 @@ check_unlocked() {
 cmd_status() {
     require_cmd bw
     local info
-    info=$(bw status 2>/dev/null)
+    info=$(bw_cmd status 2>/dev/null)
     local status server email
     status=$(echo "$info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','?'))" 2>/dev/null)
     server=$(echo "$info" | python3 -c "import sys,json; print(json.load(sys.stdin).get('serverUrl','?'))" 2>/dev/null)
@@ -47,19 +47,19 @@ cmd_status() {
 cmd_get() {
     local name="$1"
     check_unlocked
-    bw get password "$name" 2>/dev/null || die "Entry '$name' not found"
+    bw_cmd get password "$name" 2>/dev/null || die "Entry '$name' not found"
 }
 
 cmd_user() {
     local name="$1"
     check_unlocked
-    bw get username "$name" 2>/dev/null || die "Entry '$name' not found"
+    bw_cmd get username "$name" 2>/dev/null || die "Entry '$name' not found"
 }
 
 cmd_item() {
     local name="$1"
     check_unlocked
-    bw get item "$name" 2>/dev/null | python3 -c "
+    bw_cmd get item "$name" 2>/dev/null | python3 -c "
 import sys, json
 item = json.load(sys.stdin)
 print(f'  Name:     {item.get(\"name\", \"?\")}')
@@ -80,7 +80,7 @@ if notes:
 cmd_search() {
     local query="$1"
     check_unlocked
-    bw list items --search "$query" 2>/dev/null | python3 -c "
+    bw_cmd list items --search "$query" 2>/dev/null | python3 -c "
 import sys, json
 items = json.load(sys.stdin)
 if not items:
@@ -102,7 +102,7 @@ for i in items:
 
 cmd_list() {
     check_unlocked
-    bw list items 2>/dev/null | python3 -c "
+    bw_cmd list items 2>/dev/null | python3 -c "
 import sys, json
 items = json.load(sys.stdin)
 print(f'  {len(items)} items in vault:')
@@ -115,7 +115,7 @@ for i in sorted(items, key=lambda x: x.get('name', '')):
 
 cmd_sync() {
     check_unlocked
-    bw sync 2>/dev/null
+    bw_cmd sync 2>/dev/null
     ok "Vault synced."
 }
 

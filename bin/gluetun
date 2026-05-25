@@ -12,14 +12,12 @@ GLUETUN_URL="${GLUETUN_URL:-http://localhost:8000}"
 
 gluetun_get() {
     local path="$1"
-    curl -sf "${GLUETUN_URL}${path}" 2>/dev/null
+    api_get "${GLUETUN_URL}${path}"
 }
 
 gluetun_put() {
     local path="$1" data="$2"
-    curl -sf -X PUT "${GLUETUN_URL}${path}" \
-        -H "Content-Type: application/json" \
-        -d "$data" 2>/dev/null
+    api_put "${GLUETUN_URL}${path}" "" "$data"
 }
 
 # ── Commands ───────────────────────────────────────────────────

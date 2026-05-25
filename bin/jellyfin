@@ -53,28 +53,22 @@ jellyfin_api() {
 
     case "$method" in
         GET)
-            curl -sf "$url" \
-                -H "$auth_header" \
-                2>/dev/null
+            http_request GET "$url" -H "$auth_header"
             ;;
         POST)
             if [[ -n "$data" ]]; then
-                curl -sf -X POST "$url" \
+                http_request POST "$url" \
                     -H "$auth_header" \
                     -H "Content-Type: application/json" \
-                    -d "$data" \
-                    2>/dev/null
+                    -d "$data"
             else
-                curl -sf -X POST "$url" \
+                http_request POST "$url" \
                     -H "$auth_header" \
-                    -H "Content-Type: application/json" \
-                    2>/dev/null
+                    -H "Content-Type: application/json"
             fi
             ;;
         DELETE)
-            curl -sf -X DELETE "$url" \
-                -H "$auth_header" \
-                2>/dev/null
+            http_request DELETE "$url" -H "$auth_header"
             ;;
     esac
 }

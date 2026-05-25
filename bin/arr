@@ -95,9 +95,7 @@ arr_api() {
     case "$method" in
         GET)    api_get "$url" "$key" ;;
         POST)   api_post "$url" "$key" "$data" ;;
-        DELETE)
-            curl -sf -X DELETE "$url" -H "X-Api-Key: $key" 2>/dev/null
-            ;;
+        DELETE) api_delete "$url" "$key" ;;
     esac
 }
 
